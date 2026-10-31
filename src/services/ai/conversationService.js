@@ -69,9 +69,15 @@ export async function sendConversationMessage(athleteId, payload) {
       await AiThread.updateOne({ _id: thread._id, activeTurnId: turnId }, { $set: { 'messages.$[question].photoId': saved._id } }, { arrayFilters: [{ 'question.turnId': turnId, 'question.role': 'user' }] });
     }
     const history = thread.messages.filter(m => m.status === 'complete' && m.turnId !== turnId).slice(-20).map(m => ({ role: m.role, text: m.text }));
-    const answer = await generateChatAnswer(athleteId, text, photo, history);
+    const { answer, cards, toolTrace } = await generateChatAnswer(athleteId, text, photo, history);
     await AiThread.updateOne({ _id: thread._id, activeTurnId: turnId }, {
-      $set: { 'messages.$[reply].text': answer, 'messages.$[reply].status': 'complete', 'messages.$[reply].error': '' },
+      $set: {
+        'messages.$[reply].text': answer,
+        'messages.$[reply].cards': cards || [],
+        'messages.$[reply].toolTrace': toolTrace || [],
+        'messages.$[reply].status': 'complete',
+        'messages.$[reply].error': '',
+      },
       $unset: { activeTurnId: 1, activeUntil: 1 },
     }, { arrayFilters: [{ 'reply.turnId': turnId, 'reply.role': 'assistant' }] });
     return { answer, conversationId: thread.id };

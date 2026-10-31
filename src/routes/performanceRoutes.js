@@ -18,6 +18,7 @@ import { ApiError } from '../utils/apiError.js';
 import { ApiResponse } from '../utils/apiResponse.js';
 import { queueReview } from '../services/ai/reviewService.js';
 import { recoveryReadiness } from '../services/analytics/recoveryRules.js';
+import { upsertDailyRecovery } from '../services/performanceService.js';
 import { config } from '../config/env.js';
 const r = Router();
 r.use(verifyJWT);
@@ -54,20 +55,7 @@ export const dailySchema = z
     (v) => Object.keys(v).some((k) => !['date', 'notes'].includes(k)),
     'At least one measurement is required',
   );
-async function store(athleteId, data, source, sourceLabel, enqueue = true) {
-  const record = await Recovery.findOneAndUpdate(
-    { athleteId, date: data.date, source },
-    { $set: { ...data, sourceLabel } },
-    { upsert: true, new: true, runValidators: true },
-  );
-  if (enqueue)
-    await queueReview({
-      athleteId,
-      trigger: 'recovery_updated',
-      eventKey: `recovery:${record._id}:${record.updatedAt.toISOString()}`,
-    });
-  return record;
-}
+const store = upsertDailyRecovery;
 r.get(
   '/me',
   requireRole('athlete'),
