@@ -45,6 +45,56 @@ export const exerciseSchema = z.object({
   type: z.enum(['strength', 'cardio', 'mobility']).optional(),
 });
 
+const workoutItemSchema = z.object({
+  exerciseId: z.string(),
+  sets: z.number().min(1),
+  reps: z.number().min(1),
+  targetWeightKg: z.number().nullable().optional(),
+  restSec: z.number().optional(),
+  notes: z.string().optional(),
+});
+
+export const createWorkoutSchema = z.object({
+  date: z.coerce.date(),
+  title: z.string().trim().min(1),
+  items: z.array(workoutItemSchema).default([]),
+});
+
+export const updateWorkoutSchema = z.object({
+  date: z.coerce.date().optional(),
+  title: z.string().trim().min(1).optional(),
+  items: z.array(workoutItemSchema).optional(),
+  status: z.enum(['planned', 'completed', 'skipped']).optional(),
+});
+
+const setLogSchema = z.object({
+  reps: z.number().min(0),
+  weightKg: z.number().min(0),
+});
+
+export const logWorkoutSchema = z.object({
+  workoutId: z.string().nullable().optional(),
+  date: z.coerce.date().optional(),
+  items: z
+    .array(
+      z.object({
+        exerciseId: z.string(),
+        sets: z.array(setLogSchema),
+      })
+    )
+    .min(1),
+  durationMin: z.number().min(0).optional(),
+  perceivedEffort: z.number().min(1).max(10).nullable().optional(),
+  painFlag: z.boolean().optional(),
+  notes: z.string().optional(),
+});
+
+export const createCommentSchema = z.object({
+  workoutId: z.string().nullable().optional(),
+  workoutLogId: z.string().nullable().optional(),
+  text: z.string().trim().min(1),
+});
+
 export const validateBody = (schema) => (req, res, next) => {
   const result = schema.safeParse(req.body);
   if (!result.success) {
