@@ -10,6 +10,7 @@ const coachAthleteSchema = new mongoose.Schema(
       default: 'invited',
     },
     startedAt: { type: Date, default: Date.now },
+    offer: { type: String, trim: true, maxlength: 500, default: '' },
   },
   { timestamps: true }
 );

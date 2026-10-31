@@ -12,16 +12,18 @@ import { aiRateLimiter } from '../middlewares/rateLimitMiddleware.js';
 import { validateBody } from '../validations/schemas.js';
 import { z } from 'zod';
 import { plan, chat, summary, nudge } from '../controllers/aiController.js';
+import { requirePlanFeature } from '../services/billingService.js';
 const r = Router();
 r.use(verifyJWT);
 r.use((req, res, next) =>
   req.method === 'POST' ? aiRateLimiter(req, res, next) : next(),
 );
-r.use('/conversations', conversationRoutes);
-r.post('/plan', requireRole('athlete'), plan);
+r.use('/conversations', requirePlanFeature('ai'), conversationRoutes);
+r.post('/plan', requireRole('athlete'), requirePlanFeature('ai'), plan);
 r.post(
   '/chat',
   requireRole('athlete'),
+  requirePlanFeature('ai'),
   validateBody(
     z.object({
       message: z.string().trim().min(1).max(2000),
@@ -62,7 +64,7 @@ r.post(
   },
   chat,
 );
-r.post('/nudge', requireRole('athlete'), nudge);
+r.post('/nudge', requireRole('athlete'), requirePlanFeature('ai'), nudge);
 r.post('/summary/:athleteId', requireRole('coach'), summary);
 r.get(
   '/conversation',

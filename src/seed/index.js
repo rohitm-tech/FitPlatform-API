@@ -6,6 +6,7 @@ import { seedCoachAthleteLinks } from './seedCoachAthleteLinks.js';
 import { seedMuscles } from './seedMuscles.js';
 import { seedExercises } from './seedExercises.js';
 import { seedWorkoutLogs } from './seedWorkoutLogs.js';
+import { seedDiscovery } from './seedDiscovery.js';
 
 const run = async () => {
   console.log('🌱 Seeding Rhythm database...\n');
@@ -17,6 +18,7 @@ const run = async () => {
   const muscleMap = await seedMuscles();
   await seedExercises(muscleMap);
   await seedWorkoutLogs(athletes);
+  await seedDiscovery();
 
   console.log('\n✅ Seeding complete');
   await mongoose.disconnect();

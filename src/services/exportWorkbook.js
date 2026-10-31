@@ -243,6 +243,44 @@ export function buildExportWorkbook(data, exerciseNames = {}) {
   );
   add(
     book,
+    "Daily log",
+    [
+      "Date",
+      "Water (ml)",
+      "Weight (kg)",
+      "Mood (1-5)",
+      "Energy (1-5)",
+      "Stress (1-5)",
+      "Note",
+    ],
+    (data.dailyLogs || []).map((d) => [
+      d.date,
+      d.waterMl,
+      d.weightKg,
+      d.mood,
+      d.energy,
+      d.stress,
+      d.note,
+    ]),
+  );
+  add(
+    book,
+    "Food",
+    ["Date", "Meal", "Food", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"],
+    (data.dailyLogs || []).flatMap((d) =>
+      (d.foods || []).map((f) => [
+        d.date,
+        f.meal,
+        f.name,
+        f.calories,
+        f.proteinG,
+        f.carbsG,
+        f.fatG,
+      ]),
+    ),
+  );
+  add(
+    book,
     "Attendance",
     ["Check-in ID", "Gym ID", "Timestamp", "Source"],
     data.checkIns.map((c) => [id(c), id(c.gymId), c.timestamp, c.source]),

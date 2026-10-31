@@ -10,6 +10,7 @@ import {
 import { Notification } from "../models/notificationModel.js";
 import { AiThread } from "../models/aiThreadModel.js";
 import { Recovery } from "../models/recoveryModel.js";
+import { DailyLog } from "../models/dailyLogModel.js";
 import { TrainingReview } from "../models/trainingReviewModel.js";
 import { CoachPhoto } from "../models/coachPhotoModel.js";
 import { WorkoutTemplate } from "../models/workoutTemplateModel.js";
@@ -28,25 +29,12 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { User } from "../models/userModel.js";
 import bcrypt from "bcrypt";
+import { updateAthleteProfile } from "../services/athleteProfileService.js";
 
 export const completeOnboarding = asyncHandler(async (req, res) => {
-  const profileUpdates = req.body;
-
-  const user = await User.findByIdAndUpdate(
-    req.user._id,
-    {
-      $set: {
-        ...Object.fromEntries(
-          Object.entries(profileUpdates).map(([key, value]) => [
-            `profile.${key}`,
-            value,
-          ]),
-        ),
-        onboardingCompleted: true,
-      },
-    },
-    { new: true, runValidators: true },
-  ).select("-passwordHash");
+  const user = await updateAthleteProfile(req.user._id, req.body, {
+    completeOnboarding: true,
+  });
 
   return res
     .status(200)
@@ -75,6 +63,7 @@ export async function ownData(userId, { photosContent = true } = {}) {
     recovery,
     reviews,
     photos,
+    dailyLogs,
   ] = await Promise.all([
     Workout.find({ athleteId: id }).lean(),
     WorkoutLog.find({ athleteId: id }).lean(),
@@ -98,6 +87,7 @@ export async function ownData(userId, { photosContent = true } = {}) {
     CoachPhoto.find({ athleteId: id })
       .select(photosContent ? "+data" : "_id mimeType caption createdAt")
       .lean(),
+    DailyLog.find({ athleteId: id }).sort({ date: 1 }).lean(),
   ]);
   return {
     user,
@@ -119,6 +109,7 @@ export async function ownData(userId, { photosContent = true } = {}) {
     recovery,
     reviews,
     photos,
+    dailyLogs,
   };
 }
 export const exportMyData = asyncHandler(async (req, res) =>
@@ -175,6 +166,7 @@ export const deleteMyAccount = asyncHandler(async (req, res) => {
   ]);
   await Promise.all([
     Recovery.deleteMany({ athleteId: id }),
+    DailyLog.deleteMany({ athleteId: id }),
     TrainingReview.deleteMany({ athleteId: id }),
     CoachPhoto.deleteMany({ athleteId: id }),
     WorkoutTemplate.deleteMany({ coachId: id }),

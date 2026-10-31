@@ -15,6 +15,7 @@ const schema = new mongoose.Schema(
         "review",
         "plan_change",
         "marketplace",
+        "message",
       ],
       required: true,
     },

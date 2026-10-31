@@ -134,13 +134,6 @@ export const logWorkout = asyncHandler(async (req, res) => {
 
 export const listWorkoutLogs = asyncHandler(async (req, res) => {
   const athleteId = req.params.athleteId;
-  if (String(req.user._id) !== String(athleteId)) {
-    const athlete = await User.findById(athleteId).select(
-      "profile.shareDetailedLogs",
-    );
-    if (!athlete?.profile?.shareDetailedLogs)
-      throw new ApiError(403, "This athlete has not shared detailed logs");
-  }
   const logs = await WorkoutLog.find({ athleteId })
     .populate("items.exerciseId", "name slug")
     .sort({ date: -1 });

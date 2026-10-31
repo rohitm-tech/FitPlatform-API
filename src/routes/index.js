@@ -1,8 +1,12 @@
 import paymentRoutes from './paymentRoutes.js';
 import coachDiscoveryRoutes from './coachDiscoveryRoutes.js';
+import discoverRoutes from './discoverRoutes.js';
+import placeRoutes from './placeRoutes.js';
 import marketplaceRoutes from './marketplaceRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
 import performanceRoutes from './performanceRoutes.js';
+import dailyLogRoutes from './dailyLogRoutes.js';
+import myCoachRoutes from './myCoachRoutes.js';
 import { Router } from 'express';
 
 import authRoutes from './authRoutes.js';
@@ -18,6 +22,7 @@ import kioskRoutes from './kioskRoutes.js';
 import aiRoutes from './aiRoutes.js';
 
 import platformRoutes from './admin/platformRoutes.js';
+import billingRoutes from './billingRoutes.js';
 import memberAccessRoutes from './memberAccessRoutes.js';
 import kioskQrRoutes from './kioskQrRoutes.js';
 import gymInviteRoutes from './gymInviteRoutes.js';
@@ -25,12 +30,17 @@ const router = Router();
 router.use('/notifications',notificationRoutes);
 router.use('/marketplace',marketplaceRoutes);
 router.use('/coaches',coachDiscoveryRoutes);
+router.use('/discover', discoverRoutes);
+router.use('/places', placeRoutes);
 router.use('/payments',paymentRoutes);
 router.use('/performance',performanceRoutes);
+router.use('/daily-log', dailyLogRoutes);
+router.use('/my-coach', myCoachRoutes);
 router.use('/gym-invitations',gymInviteRoutes);
 router.use('/kiosk-qr',kioskQrRoutes);
 router.use('/member-access',memberAccessRoutes);
 router.use('/admin', platformRoutes);
+router.use('/billing', billingRoutes);
 
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);

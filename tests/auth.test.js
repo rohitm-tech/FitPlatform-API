@@ -19,9 +19,31 @@ describe('Auth', () => {
     expect(res.headers['set-cookie']?.[0]).toMatch(/accessToken=/);
   });
 
-  it('rejects self-assigned staff roles', async () => {
+  it('rejects more than one account type', async () => {
     const res=await request(app).post('/api/v1/auth/register').send({...credentials,roles:['coach','gym_owner']});
     expect(res.status).toBe(400);
+  });
+
+  it('registers a coach or a gym owner', async () => {
+    const coach = await request(app).post('/api/v1/auth/register').send({
+      name: 'New Coach',
+      email: 'new-coach@example.com',
+      password: 'Password123!',
+      roles: ['coach'],
+    });
+    expect(coach.status).toBe(201);
+    expect(coach.body.data.user.roles).toEqual(['coach']);
+
+    const gym = await request(app).post('/api/v1/auth/register').send({
+      name: 'New Owner',
+      email: 'new-owner@example.com',
+      password: 'Password123!',
+      roles: ['gym_owner'],
+      gymName: 'North Hall',
+    });
+    expect(gym.status).toBe(201);
+    expect(gym.body.data.user.roles).toEqual(['gym_owner']);
+    expect(gym.body.data.user.gymId).toBeTruthy();
   });
 
   it('rejects registration with a weak password', async () => {

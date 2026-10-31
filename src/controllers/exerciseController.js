@@ -13,7 +13,7 @@ export const listExercises = asyncHandler(async (req, res) => {
   if (q) filter.$text = { $search: q };
 
   const pageNum = Math.max(1, Number(page));
-  const limitNum = Math.min(100, Math.max(1, Number(limit)));
+  const limitNum = Math.min(200, Math.max(1, Number(limit)));
 
   const [exercises, total] = await Promise.all([
     Exercise.find(filter)

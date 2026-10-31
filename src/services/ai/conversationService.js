@@ -6,6 +6,12 @@ import { CoachPhoto } from '../../models/coachPhotoModel.js';
 import { ApiError } from '../../utils/apiError.js';
 import { generateChatAnswer } from './aiService.js';
 
+const withCardNames = (m) => {
+  if (m.role !== 'assistant' || !m.cards?.length) return m.text;
+  const shown = m.cards.map((c, i) => `${i + 1}. ${c.name}${c.type === 'coach' ? ` (${c.sport} coach, ${c.area})` : c.type === 'place' ? ` (${c.kind}, ${c.area})` : c.type === 'life' ? ` (life log${c.headline ? `, ${c.headline}` : ''})` : ''}`);
+  return `${m.text}\n[Cards shown: ${shown.join('; ')}]`;
+};
+
 export async function importLegacyConversation(athleteId) {
   const legacy = await AiConversation.findOne({ athleteId }).lean();
   if (!legacy?.messages?.length) return;
@@ -68,7 +74,7 @@ export async function sendConversationMessage(athleteId, payload) {
       const saved = await CoachPhoto.create({ athleteId, mimeType: photo.mimeType, data: Buffer.from(photo.data, 'base64'), caption: text });
       await AiThread.updateOne({ _id: thread._id, activeTurnId: turnId }, { $set: { 'messages.$[question].photoId': saved._id } }, { arrayFilters: [{ 'question.turnId': turnId, 'question.role': 'user' }] });
     }
-    const history = thread.messages.filter(m => m.status === 'complete' && m.turnId !== turnId).slice(-20).map(m => ({ role: m.role, text: m.text }));
+    const history = thread.messages.filter(m => m.status === 'complete' && m.turnId !== turnId).slice(-20).map(m => ({ role: m.role, text: withCardNames(m) }));
     const { answer, cards, toolTrace } = await generateChatAnswer(athleteId, text, photo, history);
     await AiThread.updateOne({ _id: thread._id, activeTurnId: turnId }, {
       $set: {

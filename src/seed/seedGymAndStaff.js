@@ -1,20 +1,16 @@
 import { User } from '../models/userModel.js';
 import { Gym } from '../models/gymModel.js';
 import { GymMembership } from '../models/gymMembershipModel.js';
+import { DEMO_ATHLETE_NAMES, DEMO_COACHES, DEMO_OWNER, upsertDemoUser as upsertUser } from './demoPeople.js';
 
-const upsertUser = async (data) => {
-  const existing = await User.findOne({ email: data.email });
-  if (existing) return existing;
-  return User.create(data);
-};
+const GYM_ADDRESS = '12th Main Road, Indiranagar, Bengaluru';
 
 // Creates 1 gym owner + their gym, 2 coaches, and 10 athletes with varied
 // profiles. Also creates a GymMembership per athlete so the gym dashboard
 // (Phase 5) has attendance/member data to show from day one.
 export const seedGymAndStaff = async () => {
   const owner = await upsertUser({
-    name: 'Priya Shah',
-    email: 'owner@fitplatform.app',
+    ...DEMO_OWNER,
     passwordHash: 'Owner1234!',
     roles: ['gym_owner'],
   });
@@ -23,11 +19,15 @@ export const seedGymAndStaff = async () => {
   if (!gym) {
     gym = await Gym.create({
       name: 'Ironclad Fitness',
-      address: '221B Baker Street, Springfield',
+      address: GYM_ADDRESS,
       ownerId: owner._id,
     });
     console.log(`  ✓ Seeded gym (${gym.name})`);
   } else {
+    if (gym.address === '221B Baker Street, Springfield') {
+      gym.address = GYM_ADDRESS;
+      await gym.save();
+    }
     console.log('  • Gym already exists, skipping');
   }
 
@@ -36,12 +36,8 @@ export const seedGymAndStaff = async () => {
     await owner.save();
   }
 
-  const coachSeeds = [
-    { name: 'Marcus Lee', email: 'coach1@fitplatform.app' },
-    { name: 'Dana Ortiz', email: 'coach2@fitplatform.app' },
-  ];
   const coaches = [];
-  for (const seed of coachSeeds) {
+  for (const seed of DEMO_COACHES) {
     const coach = await upsertUser({
       ...seed,
       passwordHash: 'Coach1234!',
@@ -70,7 +66,7 @@ export const seedGymAndStaff = async () => {
     const n = i + 1;
     const profile = athleteProfiles[i];
     const athlete = await upsertUser({
-      name: `Athlete ${n}`,
+      name: DEMO_ATHLETE_NAMES[i],
       email: `athlete${n}@fitplatform.app`,
       passwordHash: 'Athlete1234!',
       roles: ['athlete'],

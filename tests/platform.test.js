@@ -127,11 +127,11 @@ it("does not expose another athlete’s workout comments through an owned athlet
   expect(res.status).toBe(404);
 });
 
-it('enforces detailed-log consent and immediately applies revoked coach access',async()=>{
+it('lets an active coach read athlete logs and revokes that access with the coach role',async()=>{
  const coach=await account('coach','coach@privacy.com');const athlete=await account('athlete','athlete@privacy.com');
  await CoachAthlete.create({coachId:coach.user._id,athleteId:athlete.user._id,status:'active'});
  const path=`/api/v1/athletes/${athlete.user._id}/logs`;
- expect((await request(app).get(path).set(coach.auth)).status).toBe(403);
+ expect((await request(app).get(path).set(coach.auth)).status).toBe(200);
  await User.updateOne({_id:athlete.user._id},{$set:{'profile.shareDetailedLogs':true}});
  expect((await request(app).get(path).set(coach.auth)).status).toBe(200);
  await User.updateOne({_id:coach.user._id},{$set:{roles:['athlete']}});

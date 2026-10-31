@@ -10,6 +10,8 @@ import { validateBody } from "../validations/schemas.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { ApiError } from "../utils/apiError.js";
+import { SPORTS } from "../constants/sports.js";
+import { findCity, nearestCity } from "../constants/locations.js";
 const r = Router();
 r.get(
   "/",
@@ -83,12 +85,32 @@ r.put(
       remoteAvailable: z.boolean(),
       acceptingAthletes: z.boolean(),
       isPublic: z.boolean(),
+      sport: z.enum(SPORTS).optional(),
+      latitude: z.number().min(-90).max(90).nullable().optional(),
+      longitude: z.number().min(-180).max(180).nullable().optional(),
     }),
   ),
   asyncHandler(async (req, res) => {
+    const { latitude, longitude, ...fields } = req.body;
+    const update = { ...fields };
+    const unset = {};
+    if (latitude != null && longitude != null) {
+      update.point = { type: "Point", coordinates: [longitude, latitude] };
+    } else if (latitude === null && longitude === null) {
+      unset.point = "";
+    }
+    update.city =
+      (latitude != null && longitude != null
+        ? nearestCity(latitude, longitude)
+        : null) ||
+      findCity(fields.location)?.name ||
+      "";
     const profile = await CoachProfile.findOneAndUpdate(
       { coachId: req.user._id },
-      { $set: req.body },
+      {
+        $set: update,
+        ...(Object.keys(unset).length ? { $unset: unset } : {}),
+      },
       { upsert: true, new: true, runValidators: true },
     );
     res.json(new ApiResponse(200, profile, "Coach profile saved"));

@@ -5,6 +5,7 @@ import { User } from "../models/userModel.js";
 import { CoachAthlete } from "../models/coachAthleteModel.js";
 import { ApiError } from "../utils/apiError.js";
 import { notifyUser } from "./notificationService.js";
+import { recordSaleSplit } from "./billingService.js";
 export function paymentConfiguration() {
   const key = process.env.RAZORPAY_KEY_ID || "";
   const configured = !!(
@@ -304,6 +305,11 @@ export async function applyCapturedPayment(payment, gateway) {
     { _id: payment._id },
     { $set: { fulfilled: true, fulfillment } },
   );
+  try {
+    await recordSaleSplit(payment, request.categorySnapshot || listing.category);
+  } catch (error) {
+    console.error("Billing split failed", error);
+  }
   await Promise.all([
     notifyUser(payment.customerId, `payment-paid:${payment._id}`, {
       type: "marketplace",

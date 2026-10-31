@@ -1,13 +1,38 @@
 import mongoose from 'mongoose';
-// Structured results the coach agent's tools produced for this reply (e.g.
-// exercises found by search_exercises), rendered as cards rather than text.
+// Structured results the coach agent's tools produced for this reply
+// (exercises, matched coaches, venues), rendered as cards rather than text.
+// Cards saved before `type` existed are exercises.
 const cardSchema = new mongoose.Schema({
+  type: { type: String, enum: ['exercise', 'coach', 'place', 'life'], default: 'exercise' },
   exerciseId: String,
   name: String,
   slug: String,
   difficulty: String,
   equipment: [String],
   primaryMuscle: String,
+  coachId: String,
+  placeId: String,
+  kind: String,
+  sport: String,
+  sports: [String],
+  headline: String,
+  summary: String,
+  area: String,
+  city: String,
+  distanceKm: Number,
+  delivery: { type: String, enum: ['in_person', 'online'] },
+  experienceYears: Number,
+  priceMinor: Number,
+  priceUnit: String,
+  hours: String,
+  remote: Boolean,
+  accepting: Boolean,
+  languages: [String],
+  reasons: [String],
+  cautions: [String],
+  matchScore: Number,
+  isDemo: Boolean,
+  href: String,
 }, { _id: false });
 // A visible log of which tools the agent called for this reply, so the UI
 // can show the athlete what the AI actually did (not just its final text).

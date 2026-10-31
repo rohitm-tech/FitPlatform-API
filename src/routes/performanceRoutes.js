@@ -18,6 +18,7 @@ import { ApiError } from '../utils/apiError.js';
 import { ApiResponse } from '../utils/apiResponse.js';
 import { queueReview } from '../services/ai/reviewService.js';
 import { recoveryReadiness } from '../services/analytics/recoveryRules.js';
+import { requirePlanFeature } from '../services/billingService.js';
 import { upsertDailyRecovery } from '../services/performanceService.js';
 import { config } from '../config/env.js';
 const r = Router();
@@ -122,6 +123,7 @@ r.post(
 r.post(
   '/import',
   requireRole('athlete'),
+  requirePlanFeature('devices'),
   validateBody(
     z.object({
       consent: z.literal(true),
@@ -152,6 +154,7 @@ r.post(
 r.post(
   '/import/fitbit',
   requireRole('athlete'),
+  requirePlanFeature('devices'),
   validateBody(
     z
       .object({

@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env.js';
+import { SPORTS } from '../constants/sports.js';
 
 const ROLES = ['athlete', 'coach', 'gym_owner', 'admin'];
 
@@ -27,6 +28,19 @@ const profileSchema = new mongoose.Schema(
       default: [],
     },
     injuries: { type: String, default: '' },
+    location: {
+      city: { type: String, maxlength: 60, default: '' },
+      area: { type: String, maxlength: 80, default: '' },
+      latitude: { type: Number, min: -90, max: 90, default: null },
+      longitude: { type: Number, min: -180, max: 180, default: null },
+      source: { type: String, enum: ['typed', 'device', 'chat', ''], default: '' },
+    },
+    sports: { type: [{ type: String, enum: SPORTS }], default: [] },
+    about: { type: String, maxlength: 1000, default: '' },
+    trainingSetting: { type: String, enum: ['in_person', 'online', 'either'], default: 'either' },
+    budgetMonthlyInr: { type: Number, min: 0, max: 1000000, default: null },
+    languages: { type: [String], default: [] },
+    availability: { type: String, maxlength: 200, default: '' },
     bodyModelPreference: { type: String, enum: ['male', 'female'], default: 'male' },
     shareDetailedLogs: { type: Boolean, default: false },
   },
@@ -73,6 +87,11 @@ const userSchema = new mongoose.Schema(
     onboardingCompleted: {
       type: Boolean,
       default: false,
+    },
+    plan: {
+      type: String,
+      enum: ['free', 'premium'],
+      default: 'free',
     },
     kioskPinHash: { type: String, default: null, select: false },
     kioskPinFailures: { type: Number, default: 0, select: false },

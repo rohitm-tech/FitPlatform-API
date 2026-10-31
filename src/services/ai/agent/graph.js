@@ -6,10 +6,10 @@ import { buildCoachTools } from './tools.js';
 // How many analyze -> tool rounds a single reply may take before we stop and
 // answer with whatever we have (mirrors the tool-loop cap pattern used
 // elsewhere in this codebase's AI services).
-const MAX_STEPS = 4;
+const MAX_STEPS = 5;
 
 // Runs one agentic coach turn: Gemini (via LangChain, tools bound) decides
-// whether to call log_recovery / search_exercises, we execute the call(s)
+// whether to call log_recovery / review_life_log / search_exercises, we execute the call(s)
 // and feed results back, and loop until it answers in plain text or the
 // step cap is hit. Returns the final text plus the cards/trace the tools
 // produced along the way, so the caller can persist all three onto the

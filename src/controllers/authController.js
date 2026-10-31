@@ -3,9 +3,12 @@ import { ApiError } from '../utils/apiError.js';
 import { ApiResponse } from '../utils/apiResponse.js';
 import { accessTokenCookieOptions } from '../utils/cookieOptions.js';
 import { User } from '../models/userModel.js';
+import { Gym } from '../models/gymModel.js';
+import { CoachProfile } from '../models/coachProfileModel.js';
 
 export const registerUser = asyncHandler(async (req, res) => {
-  const { name, email, password, roles } = req.body;
+  const { name, email, password, roles, gymName } = req.body;
+  const role = roles?.[0] || 'athlete';
 
   const existedUser = await User.findOne({ email: email.toLowerCase() });
   if (existedUser) {
@@ -16,8 +19,22 @@ export const registerUser = asyncHandler(async (req, res) => {
     name,
     email: email.toLowerCase(),
     passwordHash: password,
-    roles: ['athlete'],
+    roles: [role],
+    onboardingCompleted: role !== 'athlete',
   });
+
+  if (role === 'gym_owner') {
+    const gym = await Gym.create({
+      name: gymName || `${name}'s gym`,
+      ownerId: user._id,
+    });
+    user.gymId = gym._id;
+    await user.save();
+  }
+
+  if (role === 'coach') {
+    await CoachProfile.create({ coachId: user._id });
+  }
 
   const createdUser = await User.findById(user._id).select('-passwordHash');
   const accessToken = createdUser.generateAccessToken();

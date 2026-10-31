@@ -1,10 +1,12 @@
 import { z } from 'zod';
+import { SPORTS } from '../constants/sports.js';
 
 export const registerSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100),
   email: z.string().trim().email('Valid email is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  roles: z.array(z.enum(['athlete'])).optional(),
+  roles: z.array(z.enum(['athlete', 'coach', 'gym_owner'])).max(1).optional(),
+  gymName: z.string().trim().min(1).max(100).optional(),
 });
 
 export const loginSchema = z.object({
@@ -13,10 +15,11 @@ export const loginSchema = z.object({
 });
 
 export const onboardingSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(100).optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
   dateOfBirth: z.coerce.date().optional(),
-  heightCm: z.number().positive().optional(),
-  weightKg: z.number().positive().optional(),
+  heightCm: z.number().positive().nullable().optional(),
+  weightKg: z.number().positive().nullable().optional(),
   experienceLevel: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
   goal: z.enum(['muscle_gain', 'fat_loss', 'strength', 'general_fitness', 'race']).optional(),
   trainingDaysPerWeek: z.number().int().min(1).max(7).optional(),
@@ -24,6 +27,21 @@ export const onboardingSchema = z.object({
   injuries: z.string().max(2000).optional(),
   shareDetailedLogs: z.boolean().optional(),
   bodyModelPreference: z.enum(['male', 'female']).optional(),
+  location: z
+    .object({
+      city: z.string().trim().max(60).default(''),
+      area: z.string().trim().max(80).default(''),
+      latitude: z.number().min(-90).max(90).nullable().optional(),
+      longitude: z.number().min(-180).max(180).nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  sports: z.array(z.enum(SPORTS)).max(SPORTS.length).optional(),
+  about: z.string().trim().max(1000).optional(),
+  trainingSetting: z.enum(['in_person', 'online', 'either']).optional(),
+  budgetMonthlyInr: z.number().int().min(0).max(1000000).nullable().optional(),
+  languages: z.array(z.string().trim().min(1).max(30)).max(8).optional(),
+  availability: z.string().trim().max(200).optional(),
 });
 
 export const muscleSchema = z.object({
@@ -96,8 +114,16 @@ export const createCommentSchema = z.object({
   text: z.string().trim().min(1),
 });
 
+export const coachMessageSchema = z.object({
+  text: z.string().trim().min(1, 'Write a message first').max(2000, 'Keep messages under 2000 characters'),
+});
+
 export const inviteAthleteSchema = z.object({
   email: z.string().trim().email(),
+});
+
+export const coachOfferSchema = z.object({
+  text: z.string().trim().min(1, 'Write a short offer').max(500),
 });
 
 export const createTemplateSchema = z.object({
