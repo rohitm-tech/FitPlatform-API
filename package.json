@@ -1,7 +1,7 @@
 {
   "name": "fitplatform-api",
   "version": "1.0.0",
-  "description": "FitPlatform backend \u00e2\u20ac\u201d multi-role fitness platform API (athlete/coach/gym/admin + kiosk)",
+  "description": "FitPlatform backend â€” multi-role fitness platform API (athlete/coach/gym/admin + kiosk)",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
@@ -9,7 +9,8 @@
     "start": "node src/index.js",
     "seed": "node src/seed/index.js",
     "test": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
-    "seed:performance": "node src/seed/seedPerformance.js"
+    "seed:performance": "node src/seed/seedPerformance.js",
+    "seed:marketplace": "node src/seed/seedMarketplace.js"
   },
   "author": "FitPlatform",
   "license": "ISC",
@@ -22,6 +23,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
     "express": "^4.21.1",
     "express-rate-limit": "^7.4.1",
     "helmet": "^8.0.0",

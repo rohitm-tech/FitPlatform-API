@@ -1,3 +1,7 @@
+import paymentRoutes from './paymentRoutes.js';
+import coachDiscoveryRoutes from './coachDiscoveryRoutes.js';
+import marketplaceRoutes from './marketplaceRoutes.js';
+import notificationRoutes from './notificationRoutes.js';
 import performanceRoutes from './performanceRoutes.js';
 import { Router } from 'express';
 
@@ -18,6 +22,10 @@ import memberAccessRoutes from './memberAccessRoutes.js';
 import kioskQrRoutes from './kioskQrRoutes.js';
 import gymInviteRoutes from './gymInviteRoutes.js';
 const router = Router();
+router.use('/notifications',notificationRoutes);
+router.use('/marketplace',marketplaceRoutes);
+router.use('/coaches',coachDiscoveryRoutes);
+router.use('/payments',paymentRoutes);
 router.use('/performance',performanceRoutes);
 router.use('/gym-invitations',gymInviteRoutes);
 router.use('/kiosk-qr',kioskQrRoutes);

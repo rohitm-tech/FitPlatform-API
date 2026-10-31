@@ -22,7 +22,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '8mb' }));
+app.use(express.json({ limit: '8mb', verify:(req,_res,buffer)=>{if(req.originalUrl.split('?')[0]==='/api/v1/payments/webhook')req.rawBody=Buffer.from(buffer);} }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
 

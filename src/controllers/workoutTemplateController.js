@@ -1,3 +1,4 @@
+import { notifyAssignment } from '../services/notificationService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
 import { ApiResponse } from '../utils/apiResponse.js';
@@ -53,5 +54,6 @@ export const assignTemplate = asyncHandler(async (req, res) => {
   }
 
   const created = await Workout.insertMany(workouts);
+  await Promise.all(created.map(workout=>notifyAssignment(workout,req.user.name)));
   return res.status(201).json(new ApiResponse(201, created, 'Workout assigned'));
 });

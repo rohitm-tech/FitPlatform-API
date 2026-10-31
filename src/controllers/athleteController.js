@@ -1,3 +1,4 @@
+import { notifyAssignment,notifyUser } from '../services/notificationService.js';
 import {queueReview} from '../services/ai/reviewService.js';
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
@@ -75,6 +76,7 @@ export const createWorkout = asyncHandler(async (req, res) => {
     athleteId,
     assignedBy: req.user._id.toString(),
   });
+  await notifyAssignment(workout,req.user.name);
   return res.status(201).json(new ApiResponse(201, workout, "Workout created"));
 });
 
@@ -89,6 +91,7 @@ export const updateWorkout = asyncHandler(async (req, res) => {
     },
   );
   if (!workout) throw new ApiError(404, "Workout not found");
+  if(String(req.user._id)!==String(athleteId))await notifyUser(athleteId,`workout-update:${workout._id}:${workout.updatedAt.toISOString()}`,{type:'plan_change',title:'Your session was updated',body:`${req.user.name} updated “${workout.title}”. Check your calendar for the latest targets.`,href:`/athlete/history?date=${new Date(workout.date).toISOString().slice(0,10)}`});
   return res.status(200).json(new ApiResponse(200, workout, "Workout updated"));
 });
 

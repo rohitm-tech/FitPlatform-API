@@ -1,23 +1,33 @@
-import { AiThread } from '../models/aiThreadModel.js';
-import { Recovery } from '../models/recoveryModel.js';
-import { TrainingReview } from '../models/trainingReviewModel.js';
-import { CoachPhoto } from '../models/coachPhotoModel.js';
-import { WorkoutTemplate } from '../models/workoutTemplateModel.js';
-import { GymInvite } from '../models/gymInviteModel.js';
-import { Workout } from '../models/workoutModel.js';
-import { WorkoutLog } from '../models/workoutLogModel.js';
-import { CheckIn } from '../models/checkInModel.js';
-import { GymMembership } from '../models/gymMembershipModel.js';
-import { CoachAthlete } from '../models/coachAthleteModel.js';
-import { Comment } from '../models/commentModel.js';
-import { KioskSession } from '../models/kioskSessionModel.js';
-import { AiConversation } from '../models/aiConversationModel.js';
-import { Gym } from '../models/gymModel.js';
-import { ApiError } from '../utils/apiError.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
-import { ApiResponse } from '../utils/apiResponse.js';
-import { User } from '../models/userModel.js';
-import bcrypt from 'bcrypt';
+import { Payment } from "../models/paymentModel.js";
+import { CoachProfile } from "../models/coachProfileModel.js";
+import { buildExportWorkbook } from "../services/exportWorkbook.js";
+import { Exercise } from "../models/exerciseModel.js";
+import {
+  MarketListing,
+  MarketRequest,
+  MarketSaved,
+} from "../models/marketplaceModel.js";
+import { Notification } from "../models/notificationModel.js";
+import { AiThread } from "../models/aiThreadModel.js";
+import { Recovery } from "../models/recoveryModel.js";
+import { TrainingReview } from "../models/trainingReviewModel.js";
+import { CoachPhoto } from "../models/coachPhotoModel.js";
+import { WorkoutTemplate } from "../models/workoutTemplateModel.js";
+import { GymInvite } from "../models/gymInviteModel.js";
+import { Workout } from "../models/workoutModel.js";
+import { WorkoutLog } from "../models/workoutLogModel.js";
+import { CheckIn } from "../models/checkInModel.js";
+import { GymMembership } from "../models/gymMembershipModel.js";
+import { CoachAthlete } from "../models/coachAthleteModel.js";
+import { Comment } from "../models/commentModel.js";
+import { KioskSession } from "../models/kioskSessionModel.js";
+import { AiConversation } from "../models/aiConversationModel.js";
+import { Gym } from "../models/gymModel.js";
+import { ApiError } from "../utils/apiError.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiResponse } from "../utils/apiResponse.js";
+import { User } from "../models/userModel.js";
+import bcrypt from "bcrypt";
 
 export const completeOnboarding = asyncHandler(async (req, res) => {
   const profileUpdates = req.body;
@@ -36,16 +46,16 @@ export const completeOnboarding = asyncHandler(async (req, res) => {
       },
     },
     { new: true, runValidators: true },
-  ).select('-passwordHash');
+  ).select("-passwordHash");
 
   return res
     .status(200)
-    .json(new ApiResponse(200, user, 'Onboarding completed'));
+    .json(new ApiResponse(200, user, "Onboarding completed"));
 });
 
-export const exportMyData = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id).select('-passwordHash').lean();
-  const id = req.user._id;
+export async function ownData(userId, { photosContent = true } = {}) {
+  const user = await User.findById(userId).select("-passwordHash").lean();
+  const id = userId;
   const [
     workouts,
     logs,
@@ -55,6 +65,12 @@ export const exportMyData = asyncHandler(async (req, res) => {
     comments,
     conversation,
     conversations,
+    notifications,
+    payments,
+    coachProfile,
+    marketplaceListings,
+    marketplaceRequests,
+    savedListings,
     templates,
     recovery,
     reviews,
@@ -68,44 +84,94 @@ export const exportMyData = asyncHandler(async (req, res) => {
     Comment.find({ authorId: id }).lean(),
     AiConversation.findOne({ athleteId: id }).lean(),
     AiThread.find({ athleteId: id }).lean(),
+    Notification.find({ recipientId: id }).lean(),
+    Payment.find({ $or: [{ customerId: id }, { providerId: id }] }).lean(),
+    CoachProfile.findOne({ coachId: id }).lean(),
+    MarketListing.find({ providerId: id }).lean(),
+    MarketRequest.find({
+      $or: [{ customerId: id }, { providerId: id }],
+    }).lean(),
+    MarketSaved.find({ userId: id }).lean(),
     WorkoutTemplate.find({ coachId: id }).lean(),
     Recovery.find({ athleteId: id }).lean(),
     TrainingReview.find({ athleteId: id }).lean(),
-    CoachPhoto.find({ athleteId: id }).select('+data').lean(),
+    CoachPhoto.find({ athleteId: id })
+      .select(photosContent ? "+data" : "_id mimeType caption createdAt")
+      .lean(),
   ]);
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        user,
-        workouts,
-        logs,
-        checkIns,
-        memberships,
-        coaching,
-        comments,
-        conversation,
-        conversations,
-        templates,
-        recovery,
-        reviews,
-        photos,
-      },
-      'Data export generated',
+  return {
+    user,
+    workouts,
+    logs,
+    checkIns,
+    memberships,
+    coaching,
+    comments,
+    conversation,
+    conversations,
+    notifications,
+    payments,
+    coachProfile,
+    marketplaceListings,
+    marketplaceRequests,
+    savedListings,
+    templates,
+    recovery,
+    reviews,
+    photos,
+  };
+}
+export const exportMyData = asyncHandler(async (req, res) =>
+  res.json(
+    new ApiResponse(200, await ownData(req.user._id), "Data export generated"),
+  ),
+);
+export const exportMyExcel = asyncHandler(async (req, res) => {
+  const data = await ownData(req.user._id, { photosContent: false });
+  const ids = [
+    ...new Set(
+      [...data.workouts, ...data.logs, ...data.templates].flatMap((record) =>
+        record.items.map((item) => String(item.exerciseId)),
+      ),
     ),
+  ];
+  const exercises = await Exercise.find({ _id: { $in: ids } })
+    .select("name")
+    .lean();
+  const names = Object.fromEntries(
+    exercises.map((ex) => [String(ex._id), ex.name]),
   );
+  const workbook = buildExportWorkbook(data, names);
+  const buffer = await workbook.xlsx.writeBuffer();
+  res.set({
+    "Content-Type":
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "Content-Disposition": 'attachment; filename="fitplatform-data.xlsx"',
+    "Cache-Control": "no-store",
+  });
+  res.send(Buffer.from(buffer));
 });
 
 export const deleteMyAccount = asyncHandler(async (req, res) => {
   const id = req.user._id;
+  if (
+    await Payment.exists({
+      $or: [{ customerId: id }, { providerId: id }],
+      status: "paid",
+    })
+  )
+    throw new ApiError(
+      409,
+      "Accounts with completed payments need support-assisted closure. Download your records and contact the platform admin.",
+    );
   if (await Gym.exists({ ownerId: id }))
     throw new ApiError(
       409,
-      'Transfer gym ownership before deleting your account',
+      "Transfer gym ownership before deleting your account",
     );
   const [workoutIds, logIds] = await Promise.all([
-    Workout.find({ athleteId: id }).distinct('_id'),
-    WorkoutLog.find({ athleteId: id }).distinct('_id'),
+    Workout.find({ athleteId: id }).distinct("_id"),
+    WorkoutLog.find({ athleteId: id }).distinct("_id"),
   ]);
   await Promise.all([
     Recovery.deleteMany({ athleteId: id }),
@@ -115,7 +181,7 @@ export const deleteMyAccount = asyncHandler(async (req, res) => {
     GymInvite.deleteMany({ email: req.user.email }),
     Workout.updateMany(
       { assignedBy: String(id) },
-      { $set: { assignedBy: 'deleted-account' } },
+      { $set: { assignedBy: "deleted-account" } },
     ),
     Workout.deleteMany({ athleteId: id }),
     WorkoutLog.deleteMany({ athleteId: id }),
@@ -125,6 +191,15 @@ export const deleteMyAccount = asyncHandler(async (req, res) => {
     KioskSession.deleteMany({ athleteId: id }),
     AiConversation.deleteMany({ athleteId: id }),
     AiThread.deleteMany({ athleteId: id }),
+    Notification.deleteMany({ recipientId: id }),
+    CoachProfile.deleteOne({ coachId: id }),
+    Payment.deleteMany({
+      $or: [{ customerId: id }, { providerId: id }],
+      status: { $ne: "paid" },
+    }),
+    MarketListing.deleteMany({ providerId: id }),
+    MarketRequest.deleteMany({ $or: [{ customerId: id }, { providerId: id }] }),
+    MarketSaved.deleteMany({ userId: id }),
     Comment.deleteMany({
       $or: [
         { authorId: id },
@@ -134,8 +209,8 @@ export const deleteMyAccount = asyncHandler(async (req, res) => {
     }),
   ]);
   await User.findByIdAndDelete(id);
-  res.clearCookie('accessToken');
-  return res.status(200).json(new ApiResponse(200, {}, 'Account deleted'));
+  res.clearCookie("accessToken");
+  return res.status(200).json(new ApiResponse(200, {}, "Account deleted"));
 });
 
 export const setKioskPin = asyncHandler(async (req, res) => {
@@ -147,5 +222,5 @@ export const setKioskPin = asyncHandler(async (req, res) => {
       kioskPinLockedUntil: null,
     },
   });
-  res.json(new ApiResponse(200, null, 'Kiosk PIN updated'));
+  res.json(new ApiResponse(200, null, "Kiosk PIN updated"));
 });

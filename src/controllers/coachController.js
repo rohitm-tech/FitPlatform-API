@@ -1,3 +1,4 @@
+import {notifyUser} from '../services/notificationService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
 import { ApiResponse } from '../utils/apiResponse.js';
@@ -62,5 +63,6 @@ export const inviteAthlete = asyncHandler(async (req, res) => {
   }
 
   const link = await CoachAthlete.create({ coachId: req.user._id, athleteId: athlete._id, status: 'invited' });
+  await notifyUser(athlete._id,`coach-invite:${link._id}`,{type:'invitation',title:'A coach invited you',body:`${req.user.name} wants to train with you. Review the invitation.`,href:'/settings?section=invitations'});
   return res.status(201).json(new ApiResponse(201, link, 'Invite sent'));
 });

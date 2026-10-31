@@ -1,3 +1,4 @@
+import {MarketListing} from '../../models/marketplaceModel.js';
 import { Router } from "express";
 
 import { z } from "zod";
@@ -85,6 +86,10 @@ router.patch(
 
     user.roles = [...new Set(req.body.roles)];
     await user.save();
+    if(!user.roles.includes('admin')){
+      const forbidden=[...(!user.roles.includes('coach')?['plan','coaching']:[]),...(!user.roles.includes('gym_owner')?['meal','supplement','gear']:[])];
+      if(forbidden.length)await MarketListing.updateMany({providerId:user._id,category:{$in:forbidden}},{$set:{status:'draft',reviewNote:'Provider role changed; publication requires a new access review.'}});
+    }
 
     res.json(
       new ApiResponse(

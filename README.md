@@ -21,6 +21,7 @@ Copy-Item .env.example .env
 # Configure MONGODB_URI, JWT_SECRET and optionally GEMINI_API_KEY.
 npm install
 npm run seed
+npm run seed:marketplace
 npm run dev
 ```
 
@@ -57,7 +58,7 @@ Admin seed email/password can be overridden through ADMIN_SEED_EMAIL and ADMIN_S
 3. Users holding several roles can switch workspaces. The navbar links to the current role's tools.
 4. A coach invites an existing athlete by email. The athlete accepts or declines under Settings. Only an active relationship grants access to their calendar and summaries.
 5. Gym owners create email-bound invitation links for members or already approved coaches. Share the link directly; email delivery is not connected. Recipients sign in with the matching email and accept at `/join-gym`.
-6. Settings controls kiosk PIN, detailed-log sharing, account export and account deletion. Owners must transfer their gym before deleting the account. The prototype does not yet expose an ownership-transfer screen.
+6. Settings controls kiosk PIN, detailed-log sharing, Excel/JSON exports and account deletion. Owners must transfer their gym before deleting the account. The prototype does not yet expose an ownership-transfer screen.
 
 ## Phase coverage
 
@@ -96,7 +97,7 @@ Kiosk session reads and logout require the paired device secret. A session recor
 
 Gym owners receive attendance and summary information, not detailed training profiles. Coaches can read detailed logs only when the athlete enables sharing. Calendar assignments and summary statistics remain available to the active coach. Comments verify that their referenced workout belongs to the selected athlete.
 
-Export includes profile, workouts, logs, attendance, memberships, coaching relationships, authored comments and AI conversation. Account deletion removes personal training records, relationships, sessions and comments associated with those workouts. Deletion is a prototype workflow rather than a transactional compliance/retention system.
+Settings > Your data exports an Excel workbook or a JSON archive. Both include profile, workouts, logged sets, recovery, attendance, memberships, coaching relationships, authored comments, conversations, notifications and marketplace/payment activity. Excel preserves numeric values and dates in separate filtered sheets; JSON also contains saved photo content. Excel lists photo metadata only. Exports exclude authentication secrets and kiosk PIN hashes. Account deletion removes personal training records, relationships, sessions and comments associated with those workouts. Deletion is a prototype workflow rather than a transactional compliance/retention system.
 
 ## Structure
 
@@ -127,7 +128,7 @@ npm test
 npm run build
 ```
 
-Backend tests use a disposable MongoDB memory server. They do not use the configured application database. Frontend tests cover role-route behavior and the real GLB muscle-name mappings. Production builds report bundle-size advisories for chart and 3D dependencies.
+Backend tests use a disposable MongoDB memory server. They do not use the configured application database. Frontend tests cover roles, the real GLB muscle-name mappings, immediate chat sending, notification state/focus, checkout callbacks and muscle exercise navigation. Backend tests also cover notifications, marketplace ownership/moderation, Excel numeric/privacy behavior and mocked Razorpay capture/signature/replay handling. Production builds report bundle-size advisories for chart and 3D dependencies.
 
 ## Models and PWA
 
@@ -143,7 +144,7 @@ The service worker caches the shell and static assets. API requests remain netwo
 - Password-reset email and invitation email delivery are not connected. Password help is explicitly labeled as a stub.
 - Gemini live responses require your own valid key and an available configured model; automated tests exercise deterministic safety without calling paid APIs.
 - Account erasure is not transactional, and ownership transfer currently requires an administrative database operation.
-- Payments, nutrition subscriptions, live wearable OAuth/native health-store bridges, native mobile apps and notifications are not connected. Dated recovery export imports are supported.
+- Live wearable OAuth/native health-store bridges, native mobile apps, recurring nutrition subscriptions, outbound email/SMS and browser push are not connected. Dated recovery imports and persistent in-app notifications are available.
 
 
 ## Connected coaching update
@@ -170,8 +171,29 @@ The relevant GEMINI_API_KEY and GEMINI_MODEL settings were copied locally from t
 
 ### Payments
 
-Checkout is intentionally not enabled in this pilot. No payment provider credentials were supplied, and the PDF's subscription prices are planning estimates rather than approved live prices. There is no simulated purchase or misleading payment button. Merchant setup, confirmed prices and payment lifecycle handling are prerequisites for a commercial checkout.
+The accepted-request payment workflow is implemented; collection remains disabled because Razorpay credentials will be added later. Athletes send a package request, the provider accepts, and only then can the athlete pay the saved package fee. The server creates the order from the immutable request price, verifies the checkout signature and gateway capture, and activates coaching only after capture. Signed raw-body webhooks recover interrupted checkout. Payment records expose capture and fulfilment separately, gateway refresh, support requests and admin order reconciliation. Demo listings cannot be charged in live mode. See backend/PAYMENTS.md for setup and the limits below.
 
 ### Verification and limits
 
 Automated checks cover recovery ingestion/consent, review queuing, plan approval ownership/replay/staleness, image validation/privacy, auth, analytics and 3D name mappings. Live verification used seeded accounts and a synthetic geometric image, not personal user photos. The front end's final design tokens and component rules are in frontend/DESIGN.md. The API remains a prototype: account erasure and multi-document approval writes are not a transactional compliance system.
+
+
+## Navigation, notifications and coach discovery
+
+The shared header has compact workspace links, an Explore/Tools menu, notifications and an account menu. Phones use an expandable navigation panel. Settings separates account information, training/privacy, invitations and exports. Shared page gutters, field labels, persistent errors, calendar day details, template editing, exercise pagination and empty/loading states were reviewed across roles.
+
+The AI workspace has searchable named conversations, new chat, rename, archive/restore, deep links, photos and readable answers. Sending immediately adds the question and clears the composer while a separate answer placeholder waits. Failed replies can retry the same saved turn.
+
+Notifications are stored per recipient and include coach assignments/rescheduling, invitations, ready reviews, coach decisions, marketplace requests/moderation and confirmed payments. The bell polls while signed in; users can filter unread, mark read/unread, mark all read and open the linked record. Assignment links select the scheduled calendar date. They are in-app updates, not operating-system push notifications.
+
+`/coaches` lists only opted-in public profiles of approved coaches. Coaches edit their public profile at `/coach/profile`, publish their approach, specialties, availability and location, and invite existing athletes from their workspace. `/coaches/:coachId` shows actual published packages and their fees. No ratings or credentials are invented. Direct invitations support existing clients; paid discovery uses the package-request workflow. Detailed logs remain controlled by the athlete's sharing preference.
+
+## Marketplace and package requests
+
+`/marketplace` reads its catalogue from MongoDB: coach-made plans, coaching packages, meals, supplements and gear. It provides search, categories, sorting, pagination and saved offerings. Listing details show scope, price and provider. Athletes can request a package, track its status or cancel before acceptance. Providers review incoming requests, accept/decline with a response, manage drafts and submit listings for review. Admins approve publication. Food/supplement listings require an admin's explicit acknowledgement of a manually verified seller licence reference.
+
+`npm run seed:marketplace` adds five explicitly marked demo listings and the demo coach profile without overwriting existing records. Food/supplement examples remain drafts. Demo catalogue prices illustrate the workflow and do not adopt the PDF's planning figures as commercial prices. Create and approve a genuine offering before enabling live charges.
+
+Payment limitations: this integration collects one accepted package fee. A monthly offering collects its first period only; automatic renewal, entitlement expiry, subscriptions, Route/split payouts, tax invoices, shipping and automatic refunds are not implemented. Non-coaching orders require provider-arranged delivery. Merchant settlements/refunds remain in the merchant dashboard. Completed-payment accounts require support-assisted closure. No gateway transaction was attempted without credentials; payment tests mock the provider in an isolated database.
+
+The PDF is a product roadmap, not evidence that external integrations or merchant approvals exist. Native health bridges, commercial seller onboarding, automatic billing/payouts and app-store distribution remain separate integration work.

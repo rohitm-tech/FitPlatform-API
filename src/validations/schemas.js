@@ -50,8 +50,8 @@ const workoutItemSchema = z.object({
   exerciseId: z.string(),
   sets: z.number().int().min(1).max(20),
   reps: z.number().int().min(1).max(1000),
-  targetWeightKg: z.number().nullable().optional(),
-  restSec: z.number().optional(),
+  targetWeightKg: z.number().min(0).max(1500).nullable().optional(),
+  restSec: z.number().int().min(0).max(600).optional(),
   notes: z.string().optional(),
 });
 

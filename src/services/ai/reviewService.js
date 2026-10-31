@@ -1,3 +1,5 @@
+import {notifyUser} from '../notificationService.js';
+import {CoachAthlete} from '../../models/coachAthleteModel.js';
 import { reviewPrompt } from './prompts/review.js';
 import { z } from 'zod';
 import { TrainingReview } from '../../models/trainingReviewModel.js';
@@ -152,6 +154,11 @@ export async function processReview(job) {
       },
     },
   );
+  await notifyUser(job.athleteId,`review-ready:${job._id}`,{type:'review',title:'Your training review is ready',body:'See how your recorded session and recovery fit your training plan.',href:'/athlete/recovery'});
+  if(workout&&analysis.recommendation!=='keep'){
+    const links=await CoachAthlete.find({athleteId:job.athleteId,status:'active'}).select('coachId');
+    await Promise.all(links.filter(link=>String(link.coachId)===String(workout.assignedBy)).map(link=>notifyUser(link.coachId,`review:${job._id}`,{type:'review',title:'A training review needs your decision',body:'Review the evidence and proposed changes before approving.',href:`/coach?athlete=${job.athleteId}`})));
+  }
 }
 let timer,
   busy = false;

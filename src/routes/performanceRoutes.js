@@ -1,3 +1,4 @@
+import {notifyUser} from '../services/notificationService.js';
 import { WorkoutTemplate } from '../models/workoutTemplateModel.js';
 import { contextFor } from '../services/ai/aiService.js';
 import { enforcePlanSafety } from '../services/ai/planSafety.js';
@@ -377,6 +378,7 @@ r.post(
         { _id: review._id },
         { $unset: { decisionLeaseUntil: 1 } },
       );
+      await notifyUser(review.athleteId,`review-decision:${review._id}`,{type:'plan_change',title:req.body.decision==='approve'?'Your coach approved a training update':'Your coach reviewed the proposed change',body:review.analysis?.planDraft?'Your weekly draft was reviewed. Your coach will assign approved sessions from their templates.':req.body.decision==='approve'?'Open your recovery review and calendar to see the approved adjustment.':'The proposed adjustment was declined. Check in with your coach before training.',href:'/athlete/recovery'});
       res.json(new ApiResponse(200, null, 'Coach decision saved'));
     } catch (error) {
       await TrainingReview.updateOne(

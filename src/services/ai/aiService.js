@@ -1,3 +1,4 @@
+import {notifyUser} from '../notificationService.js';
 import { TrainingReview } from '../../models/trainingReviewModel.js';
 import { Recovery } from '../../models/recoveryModel.js';
 import { recoveryReadiness } from '../analytics/recoveryRules.js';
@@ -146,7 +147,7 @@ export async function generateWeeklyPlan(athleteId) {
     status: 'active',
   }).sort({ createdAt: 1 });
   if (coach) {
-    await TrainingReview.create({
+    const draftReview = await TrainingReview.create({
       athleteId,
       eventKey: `plan:${athleteId}:${Date.now()}`,
       trigger: 'plan_generated',
@@ -172,6 +173,7 @@ export async function generateWeeklyPlan(athleteId) {
         draftStart: new Date(start.getTime() + 864e5),
       },
     });
+    await notifyUser(coach.coachId,`review:${draftReview._id}`,{type:'review',title:'An athlete’s weekly draft is ready',body:'Review the draft before saving sessions to your template library.',href:`/coach?athlete=${athleteId}`});
     return { ...safe, coachApprovalRequired: true };
   }
   await Workout.deleteMany({
