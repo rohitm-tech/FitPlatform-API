@@ -1,0 +1,2 @@
+export const reviewPrompt = (evidence) =>
+  `You are a coaching copilot. Return JSON {summary:string,observations:string[],recommendation:keep|reduce|rest,reason:string}. Do not diagnose. Never claim wearable data or self-reported logs prove physical completion. Use only supplied evidence. Pain means rest and professional assessment. Low readiness means reduce or rest. Data: ${JSON.stringify(evidence)}`;

@@ -1,9 +1,3 @@
-# Current checkpoint (work in progress)
-
-Recovery records, durable automatic training reviews, coach approval endpoints and photo-capable Gemini chat have been added. Gemini connectivity was verified using the configured provider. The new athlete/coach timeline interface is under active verification. The latest requested landing-page redesign and any payment integration are not finished in this checkpoint.
-
-Wearable imports are implemented; live OAuth/device sync requires separate provider registration and consent. No payment credentials or environment secrets are committed.
-
 # FitPlatform
 
 A fitness prototype with one React application and a reusable Express REST API. Athletes, coaches, gym owners and admins have separate workspaces. The existing workspace contained code for phases 1-7; the latest pass audits and completes missing workflows rather than restarting phase 1.
@@ -58,7 +52,7 @@ Admin seed email/password can be overridden through ADMIN_SEED_EMAIL and ADMIN_S
 
 ## Access and workflow
 
-1. Public registration creates an athlete only. Requests that attempt to self-assign a staff role are rejected.
+1. Public registration requires an eight-character minimum password and creates an athlete only. Requests that attempt to self-assign a staff role are rejected.
 2. Admin signs in to `/admin`, finds an account and grants coach or gym-owner access. Granting owner access provisions a gym. Existing gyms are reused when restoring access.
 3. Users holding several roles can switch workspaces. The navbar links to the current role's tools.
 4. A coach invites an existing athlete by email. The athlete accepts or declines under Settings. Only an active relationship grants access to their calendar and summaries.
@@ -70,7 +64,7 @@ Admin seed email/password can be overridden through ADMIN_SEED_EMAIL and ADMIN_S
 | Phase | Implementation |
 | --- | --- |
 | 1 | Separate frontend/API, auth, role routing, backend ownership checks, seeded staff and athletes |
-| 2 | Muscle/exercise library, search, exercise details, lazy 3D explorer, gender and camera controls, mesh registry |
+| 2 | Muscle/exercise library, search, exercise details, real GymBuddy 3D explorer, muscle/skin and camera controls, mesh registry |
 | 3 | Planned/blank workout logger, set entries, effort, pain, duration, calendar, insights, personal bests and attendance |
 | 4 | Coach roster/filter/sort, workout templates, multi-athlete assignment, calendar rescheduling, comments and weekly AI summary |
 | 5 | Owner attendance dashboard, member/coach directories, invitation links, branding, kiosk pairing/revocation, PIN and QR check-in |
@@ -116,7 +110,7 @@ backend/tests/
 frontend/src/
   pages/{auth,athlete,coach,gym,kiosk,admin}/
   components/{common,layout,athlete,coach,muscle,workout}/
-  3d/                     # registry, procedural rigs, selection, camera
+  3d/                     # anatomical GLB mapping, selection, camera
   services/ queries/ store/ types/ tests/
 frontend/public/           # PWA manifest, icon and service worker
 ```
@@ -133,7 +127,7 @@ npm test
 npm run build
 ```
 
-Backend tests use a disposable MongoDB memory server. They do not use the configured application database. Frontend tests cover role-route behavior. Production builds report bundle-size advisories for chart and 3D dependencies.
+Backend tests use a disposable MongoDB memory server. They do not use the configured application database. Frontend tests cover role-route behavior and the real GLB muscle-name mappings. Production builds report bundle-size advisories for chart and 3D dependencies.
 
 ## Models and PWA
 
@@ -149,4 +143,35 @@ The service worker caches the shell and static assets. API requests remain netwo
 - Password-reset email and invitation email delivery are not connected. Password help is explicitly labeled as a stub.
 - Gemini live responses require your own valid key and an available configured model; automated tests exercise deterministic safety without calling paid APIs.
 - Account erasure is not transactional, and ownership transfer currently requires an administrative database operation.
-- Payments, nutrition subscriptions, device/health integrations, native mobile apps and notifications are outside this prototype.
+- Payments, nutrition subscriptions, live wearable OAuth/native health-store bridges, native mobile apps and notifications are not connected. Dated recovery export imports are supported.
+
+
+## Connected coaching update
+
+The athlete home now follows the approved recovery-to-training timeline; the coach workspace provides a roster and evidence/approval pane. The landing page has no 3D model and uses scoped GSAP ScrollTrigger and ScrollToPlugin effects with reduced-motion handling. The anatomy model remains available inside the explorer and kiosk.
+
+### Recovery data
+
+`Recovery` stores dated sleep minutes, resting heart rate, HRV, steps, fatigue and soreness with source provenance. `GET /performance/me` reads the authenticated athlete's records and reviews. `POST /performance/daily` accepts a manual check-in. `POST /performance/import` accepts consent, sourceLabel and up to 90 normalized daily records. `/performance/import/fitbit` accepts a daily Fitbit sleep summary response. Bulk imports queue one review rather than one paid AI call per historical day.
+
+Run `npm run seed:performance` from backend to add 28 days of explicitly labeled demo data and upcoming sessions for the existing seeded athletes. It preserves personal accounts and existing records. Fitbit/Health Connect/Apple Health exports are imports; live device OAuth and native health-store bridges are not implemented. Jira's AI credentials cannot authorize access to a watch.
+
+### Automatic validation and coach approval
+
+The API queues a durable TrainingReview whenever an athlete submits a workout log or recovery record. The worker starts with the API, claims jobs with a lease, retries failed processing and stores rules evidence plus a schema-validated Gemini explanation. It runs in the background; the UI refreshes review status every 10 seconds. Completion checks compare logged sets, repetitions and target weights, and explicitly do not prove physical performance. Readiness is a transparent heuristic from available signals, not a clinical score. Missing and stale data are separate states. Pain and low-readiness rules override model recommendations.
+
+Nothing silently changes a coach-assigned workout. The active assigning coach explicitly approves or declines an adjustment; changed workouts fail optimistic concurrency checks. A new AI week for a coached athlete is a draft. Approval adds safe sessions to the coach's templates; calendar assignment remains explicit in the workout builder. No existing assignment is silently replaced. Rules are rechecked at approval. The automatic worker limits AI use per athlete and falls back to disclosed rules-only explanations if Gemini is unavailable.
+
+### Photo-capable AI companion
+
+`/athlete/companion` and the daily sidebar use persisted conversation history. Users can choose a photo, use the phone camera, view a preview, remove it before sending, and browse their private gallery. The browser resizes images and strips metadata by re-encoding. The backend validates image signatures, MIME types and a 4MB decoded limit before sending inline image data to Gemini. Saved photos are served only through authenticated owner-scoped endpoints with no-store headers. Food estimates are approximate; photo answers must communicate uncertainty and avoid medical diagnosis.
+
+The relevant GEMINI_API_KEY and GEMINI_MODEL settings were copied locally from the authorized JiraProj environment. Database, JWT, app URLs and unrelated OAuth credentials were preserved. No environment values are committed. The copied Gemini configuration was tested against the provider successfully.
+
+### Payments
+
+Checkout is intentionally not enabled in this pilot. No payment provider credentials were supplied, and the PDF's subscription prices are planning estimates rather than approved live prices. There is no simulated purchase or misleading payment button. Merchant setup, confirmed prices and payment lifecycle handling are prerequisites for a commercial checkout.
+
+### Verification and limits
+
+Automated checks cover recovery ingestion/consent, review queuing, plan approval ownership/replay/staleness, image validation/privacy, auth, analytics and 3D name mappings. Live verification used seeded accounts and a synthetic geometric image, not personal user photos. The front end's final design tokens and component rules are in frontend/DESIGN.md. The API remains a prototype: account erasure and multi-document approval writes are not a transactional compliance system.
