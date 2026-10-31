@@ -146,7 +146,7 @@ export const exportMyExcel = asyncHandler(async (req, res) => {
   res.set({
     "Content-Type":
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "Content-Disposition": 'attachment; filename="fitplatform-data.xlsx"',
+    "Content-Disposition": 'attachment; filename="rhythm-data.xlsx"',
     "Cache-Control": "no-store",
   });
   res.send(Buffer.from(buffer));

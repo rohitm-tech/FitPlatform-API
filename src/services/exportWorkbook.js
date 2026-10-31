@@ -74,7 +74,7 @@ function flatten(input, prefix = "") {
 }
 export function buildExportWorkbook(data, exerciseNames = {}) {
   const book = new ExcelJS.Workbook();
-  book.creator = "FitPlatform";
+  book.creator = "Rhythm";
   book.created = new Date();
   book.subject = "Private account and training export";
   add(

@@ -9,7 +9,7 @@ export const seedAdminUser = async () => {
   }
 
   const admin = await User.create({
-    name: 'FitPlatform Admin',
+    name: 'Rhythm Admin',
     email: config.ADMIN_SEED_EMAIL,
     passwordHash: config.ADMIN_SEED_PASSWORD,
     roles: ['admin'],

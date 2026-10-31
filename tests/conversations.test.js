@@ -1,8 +1,13 @@
 import { jest } from '@jest/globals';
 import crypto from 'node:crypto';
 import request from 'supertest';
+// Mock the agent's own entry point rather than the underlying Gemini SDK -
+// generateChatAnswer now talks to Gemini through @langchain/google-genai
+// (via runCoachAgent), not the raw @google/genai client these tests used to
+// stub. Mocking at this boundary keeps these tests about conversationService's
+// turn-claiming/idempotency behaviour, not about how the agent reaches Gemini.
 const generate = jest.fn();
-jest.unstable_mockModule('@google/genai', () => ({ GoogleGenAI: class { constructor() { this.models = { generateContent: generate }; } } }));
+jest.unstable_mockModule('../src/services/ai/agent/graph.js', () => ({ runCoachAgent: (...args) => generate(...args) }));
 const { default: app } = await import('../src/app.js');
 const { User } = await import('../src/models/userModel.js');
 const { AiThread } = await import('../src/models/aiThreadModel.js');
@@ -11,7 +16,7 @@ const fixture = async (email = 'chat@test.app') => {
   const user = await User.create({ name: 'Chat athlete', email, passwordHash: 'Password123!', roles: ['athlete'] });
   return { user, headers: { Authorization: `Bearer ${user.generateAccessToken()}` } };
 };
-beforeEach(() => { generate.mockReset(); generate.mockResolvedValue({ text: JSON.stringify({ answer: 'A useful training answer.' }) }); });
+beforeEach(() => { generate.mockReset(); generate.mockResolvedValue({ answer: 'A useful training answer.', cards: [], toolTrace: [] }); });
 const create = async headers => (await request(app).post('/api/v1/ai/conversations').set(headers).send({})).body.data;
 it('imports earlier history once and keeps every conversation private to its owner', async () => {
   const a = await fixture(); const b = await fixture('other@test.app');
@@ -51,7 +56,7 @@ it('saves a question and a pending answer before the provider replies, and rejec
   expect(during.body.data.messages.map(m => m.status)).toEqual(['complete', 'pending']);
   const competing = await request(app).post('/api/v1/ai/chat').set(headers).send({ conversationId: thread._id, message: 'Second question' });
   expect(competing.status).toBe(409);
-  complete({ text: JSON.stringify({ answer: 'Ready.' }) });
+  complete({ answer: 'Ready.', cards: [], toolTrace: [] });
   expect((await pending).status).toBe(200);
 });
 it('retains a failed question and retries that turn without duplicate history', async () => {

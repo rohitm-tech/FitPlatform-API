@@ -36,7 +36,7 @@ app.use('/api/v1', apiRouter);
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
-    message: 'FitPlatform API is running',
+    message: 'Rhythm API is running',
     timestamp: new Date().toISOString(),
   });
 });

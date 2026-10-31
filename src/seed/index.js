@@ -8,7 +8,7 @@ import { seedExercises } from './seedExercises.js';
 import { seedWorkoutLogs } from './seedWorkoutLogs.js';
 
 const run = async () => {
-  console.log('🌱 Seeding FitPlatform database...\n');
+  console.log('🌱 Seeding Rhythm database...\n');
   await connectDatabase();
 
   await seedAdminUser();
