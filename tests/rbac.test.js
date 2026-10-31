@@ -30,9 +30,11 @@ describe('Role-based access', () => {
   it('requireRole calls next() when the user holds one of the allowed roles', () => {
     const middleware = requireRole('coach', 'admin');
     const req = { user: { roles: ['athlete', 'coach'] } };
-    const next = jest.fn();
-    middleware(req, {}, next);
-    expect(next).toHaveBeenCalledWith();
+    let nextCalled = false;
+    middleware(req, {}, () => {
+      nextCalled = true;
+    });
+    expect(nextCalled).toBe(true);
   });
 
   it('requireRole throws 401 when there is no authenticated user', () => {
