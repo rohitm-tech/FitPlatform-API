@@ -1,4 +1,6 @@
-import { AiConversation } from '../models/aiConversationModel.js';
+import conversationRoutes from './conversationRoutes.js';
+import { AiThread } from '../models/aiThreadModel.js';
+import { importLegacyConversation } from '../services/ai/conversationService.js';
 import { CoachPhoto } from '../models/coachPhotoModel.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiResponse } from '../utils/apiResponse.js';
@@ -15,6 +17,7 @@ r.use(verifyJWT);
 r.use((req, res, next) =>
   req.method === 'POST' ? aiRateLimiter(req, res, next) : next(),
 );
+r.use('/conversations', conversationRoutes);
 r.post('/plan', requireRole('athlete'), plan);
 r.post(
   '/chat',
@@ -22,6 +25,8 @@ r.post(
   validateBody(
     z.object({
       message: z.string().trim().min(1).max(2000),
+      conversationId: z.string().regex(/^[a-fA-F0-9]{24}$/).optional(),
+      clientRequestId: z.string().uuid().optional(),
       photo: z
         .object({
           mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
@@ -63,9 +68,8 @@ r.get(
   '/conversation',
   requireRole('athlete'),
   asyncHandler(async (req, res) => {
-    const conversation = await AiConversation.findOne({
-      athleteId: req.user._id,
-    }).lean();
+    await importLegacyConversation(req.user._id);
+    const conversation = await AiThread.findOne({ athleteId: req.user._id, archived: false }).sort({ updatedAt: -1 }).lean();
     res.json(
       new ApiResponse(200, conversation?.messages || [], 'Conversation loaded'),
     );

@@ -1,3 +1,4 @@
+import { AiThread } from '../models/aiThreadModel.js';
 import { Recovery } from '../models/recoveryModel.js';
 import { TrainingReview } from '../models/trainingReviewModel.js';
 import { CoachPhoto } from '../models/coachPhotoModel.js';
@@ -53,6 +54,7 @@ export const exportMyData = asyncHandler(async (req, res) => {
     coaching,
     comments,
     conversation,
+    conversations,
     templates,
     recovery,
     reviews,
@@ -65,6 +67,7 @@ export const exportMyData = asyncHandler(async (req, res) => {
     CoachAthlete.find({ $or: [{ athleteId: id }, { coachId: id }] }).lean(),
     Comment.find({ authorId: id }).lean(),
     AiConversation.findOne({ athleteId: id }).lean(),
+    AiThread.find({ athleteId: id }).lean(),
     WorkoutTemplate.find({ coachId: id }).lean(),
     Recovery.find({ athleteId: id }).lean(),
     TrainingReview.find({ athleteId: id }).lean(),
@@ -82,6 +85,7 @@ export const exportMyData = asyncHandler(async (req, res) => {
         coaching,
         comments,
         conversation,
+        conversations,
         templates,
         recovery,
         reviews,
@@ -120,6 +124,7 @@ export const deleteMyAccount = asyncHandler(async (req, res) => {
     CoachAthlete.deleteMany({ $or: [{ athleteId: id }, { coachId: id }] }),
     KioskSession.deleteMany({ athleteId: id }),
     AiConversation.deleteMany({ athleteId: id }),
+    AiThread.deleteMany({ athleteId: id }),
     Comment.deleteMany({
       $or: [
         { authorId: id },

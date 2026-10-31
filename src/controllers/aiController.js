@@ -1,9 +1,9 @@
+import { sendConversationMessage } from '../services/ai/conversationService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiResponse } from '../utils/apiResponse.js';
 import { ApiError } from '../utils/apiError.js';
 import {
   generateWeeklyPlan,
-  chatCoach,
   weeklyAthleteSummary,
   nudgeText,
 } from '../services/ai/aiService.js';
@@ -21,9 +21,7 @@ export const chat = asyncHandler(async (req, res) =>
   res.json(
     new ApiResponse(
       200,
-      {
-        answer: await chatCoach(req.user._id, req.body.message, req.body.photo),
-      },
+      await sendConversationMessage(req.user._id, req.body),
       'Coach response generated',
     ),
   ),
