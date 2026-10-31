@@ -9,7 +9,7 @@ const router = Router();
 router.use(verifyJWT, requireRole('admin'));
 
 router.post('/', validateBody(muscleSchema), createMuscle);
-router.patch('/:id', updateMuscle);
+router.patch('/:id', validateBody(muscleSchema.partial()), updateMuscle);
 router.delete('/:id', deleteMuscle);
 
 export default router;

@@ -8,6 +8,7 @@ import { Gym } from '../models/gymModel.js';
 export const requireCoachOwnsAthlete = async (req, res, next) => {
   try {
     const athleteId = req.params.athleteId;
+    if (!req.user.roles?.includes('coach')) throw new ApiError(403, 'Coach access is required');
     const link = await CoachAthlete.findOne({
       coachId: req.user._id,
       athleteId,
@@ -47,6 +48,7 @@ export const requireSelfOrCoach = async (req, res, next) => {
     if (String(req.user._id) === String(athleteId)) {
       return next();
     }
+    if (!req.user.roles?.includes('coach')) throw new ApiError(403, 'Coach access is required');
     const link = await CoachAthlete.findOne({
       coachId: req.user._id,
       athleteId,

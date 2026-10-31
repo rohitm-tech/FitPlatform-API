@@ -74,6 +74,9 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    kioskPinHash: { type: String, default: null, select: false },
+    kioskPinFailures: { type: Number, default: 0, select: false },
+    kioskPinLockedUntil: { type: Date, default: null, select: false },
   },
   { timestamps: true }
 );
@@ -98,7 +101,7 @@ userSchema.methods.generateAccessToken = function () {
       name: this.name,
       roles: this.roles,
     },
-    config.JWT_SECRET || 'default_secret',
+    config.JWT_SECRET,
     { expiresIn: config.JWT_EXPIRES_IN }
   );
 };

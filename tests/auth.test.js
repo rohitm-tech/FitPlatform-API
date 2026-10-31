@@ -19,6 +19,11 @@ describe('Auth', () => {
     expect(res.headers['set-cookie']?.[0]).toMatch(/accessToken=/);
   });
 
+  it('rejects self-assigned staff roles', async () => {
+    const res=await request(app).post('/api/v1/auth/register').send({...credentials,roles:['coach','gym_owner']});
+    expect(res.status).toBe(400);
+  });
+
   it('rejects registration with a weak password', async () => {
     const res = await request(app)
       .post('/api/v1/auth/register')

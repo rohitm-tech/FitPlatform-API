@@ -12,7 +12,7 @@ const buildExerciseMuscleMap = async () => {
   const exercises = await Exercise.find().populate('primaryMuscles', 'key group').lean();
   const map = new Map();
   for (const ex of exercises) {
-    map.set(String(ex._id), ex.primaryMuscles.map((m) => ({ key: m.key, group: m.group })));
+    map.set(String(ex._id), [...new Map(ex.primaryMuscles.map(m => [m.group, {key:m.key,group:m.group}])).values()]);
   }
   return map;
 };

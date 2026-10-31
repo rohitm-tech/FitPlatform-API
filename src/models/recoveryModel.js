@@ -1,0 +1,3 @@
+import mongoose from 'mongoose';
+const schema=new mongoose.Schema({athleteId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},date:{type:String,required:true},source:{type:String,enum:['manual','import','fitbit','health_connect','apple_health','garmin','demo'],required:true},sourceLabel:String,sleepMinutes:{type:Number,min:0,max:1440},restingHeartRate:{type:Number,min:25,max:220},hrvMs:{type:Number,min:1,max:400},steps:{type:Number,min:0,max:200000},fatigue:{type:Number,min:1,max:10},soreness:{type:Number,min:1,max:10},notes:{type:String,maxlength:1000}},{timestamps:true});
+schema.index({athleteId:1,date:1,source:1},{unique:true});export const Recovery=mongoose.model('Recovery',schema);

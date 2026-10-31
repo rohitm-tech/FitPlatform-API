@@ -17,7 +17,7 @@ export const verifyJWT = async (req, res, next) => {
       });
     }
 
-    const decodedToken = jwt.verify(token, config.JWT_SECRET || 'default_secret');
+    const decodedToken = jwt.verify(token, config.JWT_SECRET);
     const user = await User.findById(decodedToken._id).select('-passwordHash');
 
     if (!user) {
@@ -47,7 +47,7 @@ export const optionalAuth = async (req, res, next) => {
       req.cookies?.accessToken || req.header('Authorization')?.replace('Bearer ', '');
     if (!token) return next();
 
-    const decodedToken = jwt.verify(token, config.JWT_SECRET || 'default_secret');
+    const decodedToken = jwt.verify(token, config.JWT_SECRET);
     const user = await User.findById(decodedToken._id).select('-passwordHash');
     if (user) req.user = user;
   } catch {

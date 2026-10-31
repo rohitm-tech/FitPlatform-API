@@ -16,7 +16,7 @@ export const registerUser = asyncHandler(async (req, res) => {
     name,
     email: email.toLowerCase(),
     passwordHash: password,
-    roles: roles && roles.length ? roles : ['athlete'],
+    roles: ['athlete'],
   });
 
   const createdUser = await User.findById(user._id).select('-passwordHash');

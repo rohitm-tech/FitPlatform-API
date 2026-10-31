@@ -1,3 +1,4 @@
+import {startReviewWorker} from './services/ai/reviewService.js';
 import { config } from './config/env.js';
 import { connectDatabase } from './database/connectDatabase.js';
 import app from './app.js';
@@ -6,6 +7,7 @@ const PORT = config.PORT;
 
 connectDatabase()
   .then(() => {
+    startReviewWorker();
     app.listen(PORT, () => {
       console.log(`⚡️ FitPlatform API running on port ${PORT}`);
     });

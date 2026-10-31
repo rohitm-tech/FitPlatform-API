@@ -81,5 +81,5 @@ export const getCurrentStreak = async (athleteId) => {
     }
   }
 
-  return { currentStreak: streak, daysSinceLastWorkout };
+  return { currentStreak: daysSinceLastWorkout > 1 ? 0 : streak, daysSinceLastWorkout };
 };

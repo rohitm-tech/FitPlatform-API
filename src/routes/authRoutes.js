@@ -1,3 +1,4 @@
+import {z} from 'zod';
 import { Router } from 'express';
 import {
   registerUser,
@@ -14,7 +15,7 @@ const router = Router();
 
 router.route('/register').post(authRateLimiter, validateBody(registerSchema), registerUser);
 router.route('/login').post(authRateLimiter, validateBody(loginSchema), loginUser);
-router.route('/forgot-password').post(authRateLimiter, forgotPassword);
+router.route('/forgot-password').post(authRateLimiter, validateBody(z.object({email:z.string().email()})), forgotPassword);
 router.route('/logout').post(verifyJWT, logoutUser);
 router.route('/me').get(verifyJWT, getCurrentUser);
 

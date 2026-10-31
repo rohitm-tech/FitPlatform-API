@@ -5,6 +5,8 @@ const kioskDeviceSchema = new mongoose.Schema(
   {
     deviceId: { type: String, required: true, unique: true },
     tokenHash: { type: String, required: true },
+    pairingCodeHash: { type: String, default: null },
+    pairingExpiresAt: { type: Date, default: null },
     name: { type: String, default: 'Kiosk' },
     lastSeenAt: { type: Date, default: null },
     revokedAt: { type: Date, default: null },

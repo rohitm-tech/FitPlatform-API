@@ -1,0 +1,1 @@
+export const weeklyPlanPrompt=(context)=>`Create a safe weekly training plan using only the supplied exercise IDs. Return JSON {workouts:[{day,title,items:[{exerciseId,sets,reps,restSec,notes}]}]}. Include rest days implicitly. Athlete context: ${JSON.stringify(context)}`;

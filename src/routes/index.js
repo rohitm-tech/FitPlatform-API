@@ -1,3 +1,4 @@
+import performanceRoutes from './performanceRoutes.js';
 import { Router } from 'express';
 
 import authRoutes from './authRoutes.js';
@@ -5,21 +6,34 @@ import userRoutes from './userRoutes.js';
 import muscleRoutes from './muscleRoutes.js';
 import exerciseRoutes from './exerciseRoutes.js';
 import athleteRoutes from './athleteRoutes.js';
+import coachRoutes from './coachRoutes.js';
 import adminMuscleRoutes from './admin/adminMuscleRoutes.js';
 import adminExerciseRoutes from './admin/adminExerciseRoutes.js';
+import gymRoutes from './gymRoutes.js';
+import kioskRoutes from './kioskRoutes.js';
+import aiRoutes from './aiRoutes.js';
 
+import platformRoutes from './admin/platformRoutes.js';
+import memberAccessRoutes from './memberAccessRoutes.js';
+import kioskQrRoutes from './kioskQrRoutes.js';
+import gymInviteRoutes from './gymInviteRoutes.js';
 const router = Router();
+router.use('/performance',performanceRoutes);
+router.use('/gym-invitations',gymInviteRoutes);
+router.use('/kiosk-qr',kioskQrRoutes);
+router.use('/member-access',memberAccessRoutes);
+router.use('/admin', platformRoutes);
 
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/muscles', muscleRoutes);
 router.use('/exercises', exerciseRoutes);
 router.use('/athletes', athleteRoutes);
+router.use('/coach', coachRoutes);
+router.use('/gym', gymRoutes);
+router.use('/kiosk', kioskRoutes);
+router.use('/ai', aiRoutes);
 router.use('/admin/muscles', adminMuscleRoutes);
 router.use('/admin/exercises', adminExerciseRoutes);
-
-// Phase 4+: coachRoutes
-// Phase 5+: gymRoutes, kioskRoutes
-// Phase 6+: aiRoutes
 
 export default router;
