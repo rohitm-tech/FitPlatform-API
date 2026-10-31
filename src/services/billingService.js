@@ -350,6 +350,25 @@ async function ensureDemoLedger() {
   await LedgerEntry.insertMany(rows);
 }
 
+async function placeDemoCharges() {
+  const monthsBack = {
+    'demo:premium:athlete1': 0,
+    'demo:marketplace': 0,
+    'demo:coach1:fee': 1,
+    'demo:invites': 2,
+    'demo:coach2:fee': 13,
+    'demo:gym-history': 6,
+  };
+  await Promise.all(
+    Object.entries(monthsBack).map(([dedupeKey, months]) => {
+      const recordedAt = new Date();
+      recordedAt.setMonth(recordedAt.getMonth() - months);
+      recordedAt.setDate(8);
+      return LedgerEntry.updateOne({ dedupeKey, demo: true }, { $set: { recordedAt } });
+    }),
+  );
+}
+
 export async function ensureBillingBaseline() {
   await getPricing();
   await User.updateOne(
@@ -357,31 +376,65 @@ export async function ensureBillingBaseline() {
     { $set: { plan: 'premium' } },
   );
   await ensureDemoLedger();
+  await placeDemoCharges();
   await ensureGymCharges();
+}
+
+const SOURCES = [
+  { id: 'athletes', label: 'Athletes', kinds: ['athlete_premium'], detail: 'Premium plan payments.' },
+  { id: 'coaches', label: 'Coaches', kinds: ['coach_invite', 'coach_chat', 'coach_fee'], detail: 'Invite fees, extra conversations, and the company share of coach earnings.' },
+  { id: 'gyms', label: 'Gyms', kinds: ['gym_install'], detail: 'Monthly installation charges.' },
+  { id: 'marketplace', label: 'Marketplace', kinds: ['marketplace_fee'], detail: 'The fee kept on each marketplace sale.' },
+];
+
+function sumMinor(rows) {
+  return rows.reduce((sum, row) => sum + row.amountMinor, 0);
 }
 
 export async function revenueSummary() {
   await ensureBillingBaseline();
   const rows = await LedgerEntry.find({ kind: { $in: PLATFORM_KINDS } }).lean();
-  const start = new Date();
-  start.setDate(1);
-  start.setHours(0, 0, 0, 0);
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const yearStart = new Date(monthStart.getFullYear(), 0, 1);
+  const inMonth = (row) => new Date(row.recordedAt) >= monthStart;
+  const inYear = (row) => new Date(row.recordedAt) >= yearStart;
+  const slice = (matched) => ({
+    monthMinor: sumMinor(matched.filter(inMonth)),
+    yearMinor: sumMinor(matched.filter(inYear)),
+    totalMinor: sumMinor(matched),
+    monthCount: matched.filter(inMonth).length,
+    yearCount: matched.filter(inYear).length,
+    count: matched.length,
+  });
+  const sections = SOURCES.map((source) => {
+    const matched = rows.filter((row) => source.kinds.includes(row.kind));
+    const lines = source.kinds
+      .map((kind) => {
+        const kindRows = matched.filter((row) => row.kind === kind);
+        return { kind, label: KIND_LABELS[kind], ...slice(kindRows) };
+      })
+      .filter((line) => line.totalMinor > 0);
+    return { id: source.id, label: source.label, detail: source.detail, ...slice(matched), lines };
+  });
   const breakdown = PLATFORM_KINDS.map((kind) => {
     const matched = rows.filter((row) => row.kind === kind);
     return {
       kind,
       label: KIND_LABELS[kind],
-      amountMinor: matched.reduce((sum, row) => sum + row.amountMinor, 0),
+      amountMinor: sumMinor(matched),
       count: matched.length,
     };
   }).filter((row) => row.amountMinor > 0);
+  const totals = slice(rows);
   return {
     currency: 'INR',
-    totalMinor: rows.reduce((sum, row) => sum + row.amountMinor, 0),
-    monthMinor: rows
-      .filter((row) => new Date(row.recordedAt) >= start)
-      .reduce((sum, row) => sum + row.amountMinor, 0),
-    demoMinor: rows.filter((row) => row.demo).reduce((sum, row) => sum + row.amountMinor, 0),
+    totalMinor: totals.totalMinor,
+    monthMinor: totals.monthMinor,
+    yearMinor: totals.yearMinor,
+    demoMinor: sumMinor(rows.filter((row) => row.demo)),
+    sections,
     breakdown,
   };
 }

@@ -30,7 +30,7 @@ router.get(
       new ApiResponse(
         200,
         await User.find()
-          .select("name email roles gymId createdAt")
+          .select("name email roles plan gymId createdAt")
           .sort({ createdAt: -1 }),
         "Users fetched",
       ),
