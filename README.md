@@ -34,7 +34,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5174. The API defaults to port 3002. During development, requests use Vite's `/api` proxy so cookies and previews work on the frontend origin. Production uses `VITE_API_BASE_URL`, or `/api/v1` when unset. Configure production CORS and HTTPS for your deployment. Production requires explicit JWT_SECRET and MONGODB_URI. A missing Gemini key still allows deterministic plan generation; chat and summaries require Gemini.
+Open http://localhost:5174. The API defaults to port 3002. The browser always calls `/api/v1` on the site it loaded. Vite proxies that in development, and nginx proxies it to `API_UPSTREAM` in production. The two `*.run.app` hosts are different sites, so the phone must not call the API host directly. Keep `CORS_ORIGIN` and `FRONTEND_URL` on the API set to the frontend origin. Production requires explicit JWT_SECRET and MONGODB_URI. A missing Gemini key still allows deterministic plan generation; chat and summaries require Gemini.
 
 Docker Compose is also provided. Review its environment settings before starting services.
 
