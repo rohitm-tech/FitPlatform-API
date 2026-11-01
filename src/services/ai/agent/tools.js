@@ -8,10 +8,13 @@ import { PLACE_KINDS, SPORTS, normalizeSport } from '../../../constants/sports.j
 import { updateAthleteProfile } from '../../athleteProfileService.js';
 import { findCoachMatches, findPlaceMatches, formatInr } from '../../coachMatchService.js';
 import { summarizeLifeLog } from '../../lifeLogService.js';
+import { DailyLog } from '../../../models/dailyLogModel.js';
 
 const MUSCLE_GROUPS = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core'];
+const MEALS = ['breakfast', 'lunch', 'dinner', 'snack'];
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 
 // Built per chat turn so each tool can push into this turn's own trace/cards
 // arrays — the caller persists both onto the assistant message afterward.
@@ -119,6 +122,103 @@ export function buildCoachTools(athleteId, trace, cards) {
         fatigue: z.number().int().min(1).max(10).optional().describe('1 = very fresh, 10 = extremely fatigued'),
         soreness: z.number().int().min(1).max(10).optional(),
         notes: z.string().max(1000).optional(),
+      }),
+    }
+  );
+
+  const log_day = tool(
+    async ({ date, foods, waterMl, weightKg, mood, energy, stress, note }) => {
+      const day = date || today();
+      const entries = (foods || [])
+        .map((food) => ({
+          meal: food.meal,
+          name: String(food.name || '').trim().slice(0, 120),
+          calories: food.calories ?? null,
+          proteinG: food.proteinG ?? null,
+          carbsG: food.carbsG ?? null,
+          fatG: food.fatG ?? null,
+        }))
+        .filter((food) => food.name && MEALS.includes(food.meal));
+      const hasDay =
+        waterMl != null || weightKg != null || mood != null || energy != null || stress != null || note;
+      if (!entries.length && !hasDay) {
+        return 'Nothing to save. Pass the foods they named, or water, weight, mood, energy, or stress.';
+      }
+      const existing = await DailyLog.findOne({ athleteId, date: day }).select('foods waterMl').lean();
+      if ((existing?.foods?.length || 0) + entries.length > 60) {
+        return 'This day already has 60 food entries. Ask them to remove one in the log before adding more.';
+      }
+      const update = {};
+      if (entries.length) update.$push = { foods: { $each: entries } };
+      const set = {};
+      if (waterMl != null) {
+        set.waterMl = Math.min(15000, Math.max(0, (existing?.waterMl || 0) + waterMl));
+      }
+      if (weightKg != null) set.weightKg = weightKg;
+      if (mood != null) set.mood = mood;
+      if (energy != null) set.energy = energy;
+      if (stress != null) set.stress = stress;
+      if (note) set.note = note.slice(0, 500);
+      if (Object.keys(set).length) update.$set = set;
+      await DailyLog.findOneAndUpdate({ athleteId, date: day }, update, {
+        upsert: true,
+        new: true,
+        runValidators: true,
+        setDefaultsOnInsert: true,
+      });
+      const bits = [];
+      if (entries.length) {
+        const byMeal = {};
+        for (const food of entries) {
+          byMeal[food.meal] = byMeal[food.meal] || [];
+          byMeal[food.meal].push(food.name);
+        }
+        bits.push(
+          Object.entries(byMeal)
+            .map(([meal, names]) => `${meal}: ${names.join(', ')}`)
+            .join('; '),
+        );
+      }
+      if (set.waterMl != null) bits.push(`${set.waterMl} ml water`);
+      if (set.weightKg != null) bits.push(`${set.weightKg} kg`);
+      if (set.mood != null) bits.push(`mood ${set.mood}/5`);
+      if (set.energy != null) bits.push(`energy ${set.energy}/5`);
+      if (set.stress != null) bits.push(`stress ${set.stress}/5`);
+      trace.push({ tool: 'log_day', label: `Logged ${day}: ${bits.join(' · ')}`, status: 'done' });
+      cards.push({
+        type: 'life',
+        name: `Logged ${day}`,
+        headline: bits[0] || 'Daily log updated',
+        summary: 'Saved to the daily log',
+        href: '/athlete#dash-daylog-title',
+      });
+      return `Saved for ${day}: ${bits.join('; ')}. Calories were stored only when a number was given.`;
+    },
+    {
+      name: 'log_day',
+      description:
+        "Write into this athlete's daily log. Call it immediately when they ask to log or record food, a meal, water, body weight, mood, energy, or stress. Store the foods in their own words (for example \"two butter roti\" and \"paneer curry\" as lunch). Do not refuse because calories are missing, and do not invent calories or macros — leave them empty unless the athlete stated a number. Water is added to today's total, in millilitres. Mood, energy and stress are 1-5. Defaults to today in India.",
+      schema: z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('YYYY-MM-DD, defaults to today'),
+        foods: z
+          .array(
+            z.object({
+              meal: z.enum(MEALS),
+              name: z.string().min(1).max(120).describe('What they ate, in their words'),
+              calories: z.number().min(0).max(10000).optional(),
+              proteinG: z.number().min(0).max(1000).optional(),
+              carbsG: z.number().min(0).max(2000).optional(),
+              fatG: z.number().min(0).max(1000).optional(),
+            }),
+          )
+          .max(8)
+          .optional(),
+        waterMl: z.number().int().min(1).max(5000).optional().describe('Millilitres to add, not the new total'),
+        weightKg: z.number().min(20).max(400).optional(),
+        mood: z.number().int().min(1).max(5).optional(),
+        energy: z.number().int().min(1).max(5).optional(),
+        stress: z.number().int().min(1).max(5).optional(),
+        note: z.string().max(500).optional(),
       }),
     }
   );
@@ -344,5 +444,5 @@ export function buildCoachTools(athleteId, trace, cards) {
     }
   );
 
-  return [search_exercises, log_recovery, review_life_log, save_athlete_details, find_coaches, find_places];
+  return [search_exercises, log_recovery, log_day, review_life_log, save_athlete_details, find_coaches, find_places];
 }
