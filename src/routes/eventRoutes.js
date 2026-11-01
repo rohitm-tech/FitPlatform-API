@@ -12,6 +12,7 @@ import {
   listAdminEvents,
   listPublished,
   listRsvps,
+  openEventMedia,
   rsvp,
   updateEvent,
 } from '../services/eventService.js';
@@ -29,6 +30,10 @@ const eventSchema = z.object({
   premiumPriceMinor: z.number().int().min(0).max(100000000),
   publicOpensAt: z.string().trim().min(1).max(40),
   status: z.enum(['draft', 'published', 'cancelled']),
+  photos: z.array(z.object({
+    mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+    data: z.string().min(1),
+  })).max(4).optional(),
 }).superRefine((value, ctx) => {
   const opens = Date.parse(value.publicOpensAt);
   const starts = Date.parse(value.startsAt);
@@ -83,6 +88,17 @@ router.get(
   requireRole('admin'),
   asyncHandler(async (req, res) => {
     res.json(new ApiResponse(200, await listRsvps(req.params.eventId), 'Signups'));
+  }),
+);
+
+router.get(
+  '/media/:eventId/:file',
+  requireRole('athlete', 'admin'),
+  asyncHandler(async (req, res) => {
+    const file = await openEventMedia(req.params.eventId, req.params.file);
+    res.set('Content-Type', file.mimeType);
+    res.set('Cache-Control', 'private, max-age=86400');
+    res.send(file.data);
   }),
 );
 

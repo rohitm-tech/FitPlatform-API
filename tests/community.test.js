@@ -59,6 +59,19 @@ describe('Community', () => {
       .send({ body: 'Cubbon Park loop this Sunday, from the bandstand at 6:30.' });
     expect(post.status).toBe(201);
 
+    const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const withPhoto = await request(app)
+      .post('/api/v1/community/posts')
+      .set(premium.headers)
+      .send({ body: 'Sunrise from the lake.', media: [{ mimeType: 'image/png', data: png }] });
+    expect(withPhoto.status).toBe(201);
+    expect(withPhoto.body.data.media).toHaveLength(1);
+    const photo = await request(app)
+      .get(withPhoto.body.data.media[0].url.replace('/api/v1', '/api/v1'))
+      .set(premium.headers);
+    expect(photo.status).toBe(200);
+    expect(photo.headers['content-type']).toMatch(/image\/png/);
+
     const reply = await request(app)
       .post(`/api/v1/community/posts/${post.body.data._id}/replies`)
       .set(premium.headers)
@@ -81,10 +94,11 @@ describe('Community', () => {
       .get('/api/v1/community/athletes')
       .query({ q: 'Vihaan' })
       .set(premium.headers);
-    expect(found.body.data).toEqual([
+    expect(found.body.data.athletes).toEqual([
       expect.objectContaining({ _id: free.user._id.toString(), name: 'Vihaan Reddy' }),
     ]);
-    expect(found.body.data[0].email).toBeUndefined();
+    expect(found.body.data.athletes[0].email).toBeUndefined();
+    expect(found.body.data.you.sports).toEqual([]);
 
     const started = await request(app).post('/api/v1/community/threads').set(premium.headers).send({
       athleteId: free.user._id.toString(),

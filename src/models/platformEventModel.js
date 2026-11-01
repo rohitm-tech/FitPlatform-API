@@ -5,6 +5,16 @@ const schema = new mongoose.Schema(
     title: { type: String, required: true, trim: true, maxlength: 120 },
     summary: { type: String, required: true, trim: true, maxlength: 2000 },
     place: { type: String, required: true, trim: true, maxlength: 160 },
+    images: {
+      type: [
+        {
+          filename: { type: String, required: true },
+          mimeType: { type: String, required: true },
+          credit: { type: String, default: '', maxlength: 240 },
+        },
+      ],
+      default: [],
+    },
     startsAt: { type: Date, required: true },
     endsAt: { type: Date, required: true },
     capacity: { type: Number, required: true, min: 1, max: 10000 },

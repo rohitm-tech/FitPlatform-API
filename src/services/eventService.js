@@ -1,3 +1,6 @@
+import crypto from 'crypto';
+import fs from 'fs/promises';
+import path from 'path';
 import { PlatformEvent } from '../models/platformEventModel.js';
 import { EventRsvp } from '../models/eventRsvpModel.js';
 import { User } from '../models/userModel.js';
@@ -16,6 +19,48 @@ function formatWhen(date) {
     timeStyle: 'short',
     timeZone: 'Asia/Kolkata',
   }).format(new Date(date));
+}
+
+const EVENT_MEDIA = path.resolve('uploads/events');
+const IMAGE_TYPES = [
+  { mime: 'image/jpeg', ext: 'jpg', test: (b) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+  { mime: 'image/png', ext: 'png', test: (b) => b.length > 8 && b[0] === 0x89 && b.toString('ascii', 1, 4) === 'PNG' },
+  { mime: 'image/webp', ext: 'webp', test: (b) => b.length > 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP' },
+];
+
+function presentImages(event) {
+  return (event.images || []).map((image) => ({
+    url: `/api/v1/events/media/${event._id}/${image.filename}`,
+    credit: image.credit || '',
+  }));
+}
+
+async function storeEventPhotos(eventId, photos) {
+  const stored = [];
+  let total = 0;
+  for (const photo of photos || []) {
+    const buffer = Buffer.from(String(photo.data || ''), 'base64');
+    const type = IMAGE_TYPES.find((entry) => entry.mime === photo.mimeType && entry.test(buffer));
+    if (!type) throw new ApiError(400, 'Use a JPEG, PNG, or WebP photo.');
+    if (buffer.length > 4 * 1024 * 1024) throw new ApiError(400, 'Each photo must be 4 MB or smaller.');
+    total += buffer.length;
+    if (total > 8 * 1024 * 1024) throw new ApiError(400, 'Keep the photos under 8 MB together.');
+    stored.push({
+      filename: `${crypto.randomBytes(8).toString('hex')}.${type.ext}`,
+      mimeType: type.mime,
+      credit: '',
+      buffer,
+    });
+  }
+  if (!stored.length) return;
+  const dir = path.join(EVENT_MEDIA, String(eventId));
+  await fs.rm(dir, { recursive: true, force: true });
+  await fs.mkdir(dir, { recursive: true });
+  await Promise.all(stored.map((item) => fs.writeFile(path.join(dir, item.filename), item.buffer)));
+  await PlatformEvent.updateOne(
+    { _id: eventId },
+    { $set: { images: stored.map(({ filename, mimeType, credit }) => ({ filename, mimeType, credit })) } },
+  );
 }
 
 function decorate(event, user, goingCount, rsvp) {
@@ -37,6 +82,7 @@ function decorate(event, user, goingCount, rsvp) {
     title: event.title,
     summary: event.summary,
     place: event.place,
+    images: presentImages(event),
     startsAt: event.startsAt,
     endsAt: event.endsAt,
     capacity: event.capacity,
@@ -60,6 +106,7 @@ function adminView(event, goingCount) {
     title: event.title,
     summary: event.summary,
     place: event.place,
+    images: presentImages(event),
     startsAt: event.startsAt,
     endsAt: event.endsAt,
     capacity: event.capacity,
@@ -185,7 +232,9 @@ export async function listAdminEvents() {
 
 export async function createEvent(admin, input) {
   const event = await PlatformEvent.create(fieldsFrom(input, admin._id));
-  return adminView(event.toObject(), 0);
+  if (input.photos?.length) await storeEventPhotos(event._id, input.photos);
+  const fresh = await PlatformEvent.findById(event._id).lean();
+  return adminView(fresh, 0);
 }
 
 export async function updateEvent(eventId, input) {
@@ -196,8 +245,29 @@ export async function updateEvent(eventId, input) {
     { new: true, runValidators: true },
   ).lean();
   if (!event) throw new ApiError(404, 'That event could not be found.');
+  if (input.photos?.length) await storeEventPhotos(eventId, input.photos);
+  const fresh = input.photos?.length ? await PlatformEvent.findById(eventId).lean() : event;
   const goingCount = await EventRsvp.countDocuments({ eventId, status: 'going' });
-  return adminView(event, goingCount);
+  return adminView(fresh, goingCount);
+}
+
+export async function openEventMedia(eventId, file) {
+  parseId(eventId, 'event');
+  if (!/^[a-f0-9]{16}\.(jpg|png|webp)$/.test(String(file || ''))) {
+    throw new ApiError(404, 'That photo could not be found.');
+  }
+  const event = await PlatformEvent.findById(eventId).select('images').lean();
+  const image = event?.images?.find((item) => item.filename === file);
+  if (!image) throw new ApiError(404, 'That photo could not be found.');
+  const full = path.resolve(EVENT_MEDIA, String(eventId), file);
+  if (!full.startsWith(`${path.resolve(EVENT_MEDIA)}${path.sep}`)) {
+    throw new ApiError(404, 'That photo could not be found.');
+  }
+  try {
+    return { mimeType: image.mimeType, data: await fs.readFile(full) };
+  } catch {
+    throw new ApiError(404, 'That photo could not be found.');
+  }
 }
 
 export async function listRsvps(eventId) {

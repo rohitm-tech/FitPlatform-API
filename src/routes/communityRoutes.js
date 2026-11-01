@@ -13,6 +13,7 @@ import {
   listPosts,
   listReplies,
   listThreads,
+  openCommunityMedia,
   searchAthletes,
   sendMessage,
   startThread,
@@ -23,6 +24,25 @@ const router = Router();
 const text = z.object({
   body: z.string().trim().min(1, 'Write something first.').max(2000, 'Keep it under 2000 characters.'),
 });
+const postSchema = z
+  .object({
+    body: z.string().trim().max(2000, 'Keep it under 2000 characters.').optional().default(''),
+    media: z
+      .array(
+        z.object({
+          mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm']),
+          data: z.string().min(1),
+        }),
+      )
+      .max(4, 'Add up to 4 photos or videos.')
+      .optional()
+      .default([]),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.body && value.media.length === 0) {
+      ctx.addIssue({ code: 'custom', message: 'Write something or add a photo or video.', path: ['body'] });
+    }
+  });
 const startSchema = z.object({
   athleteId: z.string().regex(/^[a-fA-F0-9]{24}$/, 'Choose an athlete.'),
   body: z.string().trim().min(1, 'Write a message first.').max(2000, 'Keep it under 2000 characters.'),
@@ -69,11 +89,21 @@ router.get(
   }),
 );
 
+router.get(
+  '/media/:postId/:file',
+  asyncHandler(async (req, res) => {
+    const file = await openCommunityMedia(req.params.postId, req.params.file);
+    res.set('Content-Type', file.mimeType);
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.send(file.data);
+  }),
+);
+
 router.post(
   '/posts',
-  validateBody(text),
+  validateBody(postSchema),
   asyncHandler(async (req, res) => {
-    const post = await createPost(req.user, req.body.body);
+    const post = await createPost(req.user, req.body);
     res.status(201).json(new ApiResponse(201, post, 'Posted'));
   }),
 );

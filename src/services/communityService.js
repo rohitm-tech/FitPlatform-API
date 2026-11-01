@@ -1,3 +1,6 @@
+import crypto from 'crypto';
+import fs from 'fs/promises';
+import path from 'path';
 import { CommunityPost } from '../models/communityPostModel.js';
 import { CommunityReply } from '../models/communityReplyModel.js';
 import { CommunityLike } from '../models/communityLikeModel.js';
@@ -30,6 +33,46 @@ function authorOf(names, id) {
   return { _id: id, name: names.get(String(id)) || 'Athlete' };
 }
 
+const MEDIA_DIR = path.resolve('uploads/community');
+const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 6 * 1024 * 1024;
+const MEDIA_TYPES = [
+  { mime: 'image/jpeg', kind: 'image', ext: 'jpg', test: (b) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+  { mime: 'image/png', kind: 'image', ext: 'png', test: (b) => b.length > 8 && b[0] === 0x89 && b.toString('ascii', 1, 4) === 'PNG' },
+  { mime: 'image/webp', kind: 'image', ext: 'webp', test: (b) => b.length > 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP' },
+  { mime: 'image/gif', kind: 'image', ext: 'gif', test: (b) => b.length > 6 && (b.toString('ascii', 0, 6) === 'GIF87a' || b.toString('ascii', 0, 6) === 'GIF89a') },
+  { mime: 'video/mp4', kind: 'video', ext: 'mp4', test: (b) => b.length > 12 && b.toString('ascii', 4, 8) === 'ftyp' },
+  { mime: 'video/webm', kind: 'video', ext: 'webm', test: (b) => b.length > 4 && b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3 },
+];
+
+function presentMedia(post) {
+  return (post.media || []).map((item) => ({
+    kind: item.kind,
+    mimeType: item.mimeType,
+    url: `/api/v1/community/media/${post._id}/${item.filename}`,
+  }));
+}
+
+function prepareMedia(items) {
+  const prepared = [];
+  let total = 0;
+  for (const item of items || []) {
+    const buffer = Buffer.from(String(item.data || ''), 'base64');
+    const type = MEDIA_TYPES.find((entry) => entry.mime === item.mimeType && entry.test(buffer));
+    if (!type) throw new ApiError(400, 'Use a JPEG, PNG, WebP, GIF, MP4, or WebM file.');
+    if (buffer.length > MAX_FILE_BYTES) throw new ApiError(400, 'Each photo or video must be 4 MB or smaller.');
+    total += buffer.length;
+    if (total > MAX_TOTAL_BYTES) throw new ApiError(400, 'Keep photos and videos under 6 MB together.');
+    prepared.push({
+      kind: type.kind,
+      mimeType: type.mime,
+      ext: type.ext,
+      buffer,
+    });
+  }
+  return prepared;
+}
+
 export async function listPosts(user, before) {
   const query = {};
   if (before) {
@@ -54,13 +97,39 @@ export async function listPosts(user, before) {
       likeCount: post.likeCount,
       replyCount: post.replyCount,
       liked: liked.has(String(post._id)),
+      media: presentMedia(post),
       author: authorOf(names, post.authorId),
     })),
   };
 }
 
-export async function createPost(user, body) {
-  const post = await CommunityPost.create({ authorId: user._id, body });
+export async function createPost(user, { body = '', media = [] }) {
+  const text = String(body || '').trim();
+  const prepared = prepareMedia(media);
+  if (!text && prepared.length === 0) {
+    throw new ApiError(400, 'Write something or add a photo or video.');
+  }
+  const stored = prepared.map((item) => ({
+    kind: item.kind,
+    mimeType: item.mimeType,
+    filename: `${crypto.randomBytes(8).toString('hex')}.${item.ext}`,
+    buffer: item.buffer,
+  }));
+  const post = await CommunityPost.create({
+    authorId: user._id,
+    body: text,
+    media: stored.map(({ kind, mimeType, filename }) => ({ kind, mimeType, filename })),
+  });
+  try {
+    if (stored.length) {
+      const dir = path.join(MEDIA_DIR, String(post._id));
+      await fs.mkdir(dir, { recursive: true });
+      await Promise.all(stored.map((item) => fs.writeFile(path.join(dir, item.filename), item.buffer)));
+    }
+  } catch (error) {
+    await CommunityPost.deleteOne({ _id: post._id });
+    throw error;
+  }
   return {
     _id: post._id,
     body: post.body,
@@ -68,8 +137,28 @@ export async function createPost(user, body) {
     likeCount: 0,
     replyCount: 0,
     liked: false,
+    media: presentMedia(post),
     author: { _id: user._id, name: user.name },
   };
+}
+
+export async function openCommunityMedia(postId, file) {
+  parseId(postId, 'post');
+  if (!/^[a-f0-9]{16}\.(jpg|png|webp|gif|mp4|webm)$/.test(String(file || ''))) {
+    throw new ApiError(404, 'That file could not be found.');
+  }
+  const post = await CommunityPost.findById(postId).select('media').lean();
+  const item = post?.media?.find((entry) => entry.filename === file);
+  if (!item) throw new ApiError(404, 'That file could not be found.');
+  const full = path.resolve(MEDIA_DIR, String(postId), file);
+  if (!full.startsWith(`${path.resolve(MEDIA_DIR)}${path.sep}`)) {
+    throw new ApiError(404, 'That file could not be found.');
+  }
+  try {
+    return { mimeType: item.mimeType, data: await fs.readFile(full) };
+  } catch {
+    throw new ApiError(404, 'That file could not be found.');
+  }
 }
 
 export async function listReplies(postId) {
@@ -127,17 +216,35 @@ export async function toggleLike(user, postId) {
 }
 
 export async function searchAthletes(user, rawQuery) {
+  const me = await User.findById(user._id).select('profile.sports').lean();
+  const mine = me?.profile?.sports || [];
   const q = String(rawQuery || '').trim();
-  if (!q) return [];
-  const people = await User.find({
-    roles: 'athlete',
-    _id: { $ne: user._id },
-    name: { $regex: escapeRegex(q), $options: 'i' },
-  })
-    .select('name')
-    .limit(8)
+  const filter = { roles: 'athlete', _id: { $ne: user._id } };
+  if (q) {
+    const pattern = escapeRegex(q);
+    filter.$or = [
+      { name: { $regex: pattern, $options: 'i' } },
+      { 'profile.sports': { $regex: pattern, $options: 'i' } },
+      { 'profile.location.city': { $regex: pattern, $options: 'i' } },
+    ];
+  }
+  const people = await User.find(filter)
+    .select('name profile.sports profile.location.city')
+    .limit(q ? 12 : 24)
     .lean();
-  return people.map((person) => ({ _id: person._id, name: person.name }));
+  const athletes = people
+    .map((person) => {
+      const sports = person.profile?.sports || [];
+      return {
+        _id: person._id,
+        name: person.name,
+        sports,
+        city: person.profile?.location?.city || '',
+        shared: sports.filter((sport) => mine.includes(sport)),
+      };
+    })
+    .sort((a, b) => b.shared.length - a.shared.length || a.name.localeCompare(b.name));
+  return { you: { sports: mine }, athletes };
 }
 
 async function threadFor(user, other, key) {
