@@ -1,20 +1,6 @@
 import mongoose from 'mongoose';
-
-const templateItemSchema = new mongoose.Schema(
-  {
-    exerciseId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Exercise',
-      required: true,
-    },
-    sets: { type: Number, required: true },
-    reps: { type: Number, required: true },
-    targetWeightKg: { type: Number, default: null },
-    restSec: { type: Number, default: 60 },
-    notes: { type: String, default: '' },
-  },
-  { _id: false },
-);
+import { SPORTS } from '../constants/sports.js';
+import { sessionItemSchema } from './sessionItemSchema.js';
 
 const workoutTemplateSchema = new mongoose.Schema(
   {
@@ -29,7 +15,8 @@ const workoutTemplateSchema = new mongoose.Schema(
       required: true,
     },
     title: { type: String, required: true },
-    items: { type: [templateItemSchema], default: [] },
+    sport: { type: String, enum: SPORTS, default: 'Strength' },
+    items: { type: [sessionItemSchema()], default: [] },
   },
   { timestamps: true },
 );

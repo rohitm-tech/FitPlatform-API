@@ -59,6 +59,21 @@ it('compares assigned sets, repetitions and load without claiming proof', () => 
   expect(result.status).toBe('partial');
   expect(result.explanation).toMatch(/do not prove/);
 });
+it('marks a swim piece met from repeats and distance, not load', () => {
+  const result = completionReview(
+    {
+      items: [
+        { kind: 'swim', label: 'Freestyle', sets: 8, distanceM: 100, stroke: 'Freestyle' },
+      ],
+    },
+    {
+      items: [{ label: 'Freestyle', kind: 'swim', sets: [{ reps: 8, distanceM: 100 }] }],
+      painFlag: false,
+    },
+  );
+  expect(result.coverage).toBe(100);
+  expect(result.status).toBe('met');
+});
 it('persists recovery and queues a durable review on save', async () => {
   const { u, headers } = await auth();
   const res = await request(app)

@@ -52,6 +52,7 @@ export const DEFAULT_PRICING = {
         { key: 'devices', label: 'Connect Apple Watch, Fitbit, and other wearables', included: false, limit: null },
         { key: 'ai', label: 'AI coach', included: false, limit: null },
         { key: 'coach_chats', label: 'Coach conversations included', included: false, limit: 0 },
+        { key: 'community', label: 'Community feed and messages', included: false, limit: null },
       ],
     },
     {
@@ -64,6 +65,7 @@ export const DEFAULT_PRICING = {
         { key: 'devices', label: 'Connect Apple Watch, Fitbit, and other wearables', included: true, limit: null },
         { key: 'ai', label: 'AI coach', included: true, limit: null },
         { key: 'coach_chats', label: 'Coach conversations included', included: true, limit: 3 },
+        { key: 'community', label: 'Community feed and messages', included: true, limit: null },
       ],
     },
   ],

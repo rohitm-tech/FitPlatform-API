@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listMyAthletes, inviteAthlete, exploreAthletes, offerToTrain, athleteDashboard } from '../controllers/coachController.js';
+import { listMyAthletes, inviteAthlete, exploreAthletes, offerToTrain, followUpOffer, athleteDashboard } from '../controllers/coachController.js';
 import { listTemplates, createTemplate, assignTemplate } from '../controllers/workoutTemplateController.js';
 import { listAthleteMessages, sendToAthlete } from '../controllers/coachMessageController.js';
 import { verifyJWT } from '../middlewares/authMiddleware.js';
@@ -10,6 +10,7 @@ import {
   coachMessageSchema,
   inviteAthleteSchema,
   coachOfferSchema,
+  coachFollowUpSchema,
   createTemplateSchema,
   assignTemplateSchema,
 } from '../validations/schemas.js';
@@ -20,6 +21,7 @@ router.use(verifyJWT, requireRole('coach'));
 
 router.get('/explore', exploreAthletes);
 router.post('/explore/:athleteId/offer', validateBody(coachOfferSchema), offerToTrain);
+router.post('/explore/:athleteId/follow-up', validateBody(coachFollowUpSchema), followUpOffer);
 router.get('/athletes/:athleteId/dashboard', requireCoachOwnsAthlete, athleteDashboard);
 router.get('/athletes', listMyAthletes);
 router.post('/athletes/invite', validateBody(inviteAthleteSchema), inviteAthlete);

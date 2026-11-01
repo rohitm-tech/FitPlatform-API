@@ -23,6 +23,8 @@ import aiRoutes from './aiRoutes.js';
 
 import platformRoutes from './admin/platformRoutes.js';
 import billingRoutes from './billingRoutes.js';
+import communityRoutes from './communityRoutes.js';
+import eventRoutes from './eventRoutes.js';
 import memberAccessRoutes from './memberAccessRoutes.js';
 import kioskQrRoutes from './kioskQrRoutes.js';
 import gymInviteRoutes from './gymInviteRoutes.js';
@@ -41,6 +43,8 @@ router.use('/kiosk-qr',kioskQrRoutes);
 router.use('/member-access',memberAccessRoutes);
 router.use('/admin', platformRoutes);
 router.use('/billing', billingRoutes);
+router.use('/community', communityRoutes);
+router.use('/events', eventRoutes);
 
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);

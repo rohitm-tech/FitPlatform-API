@@ -75,6 +75,36 @@ export function recoveryReadiness(records, now = Date.now()) {
     method: 'Training-readiness heuristic, not a medical assessment',
   };
 }
+function pieceLogged(planned, result) {
+  if (!result) return false;
+  if (planned.kind === 'swim') {
+    return (
+      (result.reps || 0) >= (planned.sets || 1) &&
+      (result.distanceM || 0) >= (planned.distanceM || 0)
+    );
+  }
+  if (planned.kind === 'endurance') {
+    if (planned.distanceM && (result.distanceM || 0) < planned.distanceM) return false;
+    if (!planned.distanceM && planned.durationSec && (result.durationSec || 0) < planned.durationSec) {
+      return false;
+    }
+    return Boolean(planned.distanceM || planned.durationSec);
+  }
+  if (planned.kind === 'station') {
+    if (planned.metric === 'distance') return (result.distanceM || 0) >= (planned.distanceM || 1);
+    if (planned.metric === 'time') return (result.durationSec || 0) > 0;
+    return (result.reps || 0) >= (planned.reps || 1);
+  }
+  if (planned.kind === 'rounds') {
+    return (
+      (result.reps || 0) >= (planned.sets || 1) &&
+      (result.durationSec || 0) >= (planned.durationSec || 1)
+    );
+  }
+  if (planned.kind === 'practice') return (result.durationSec || 0) >= (planned.durationSec || 1);
+  return false;
+}
+
 export function completionReview(workout, log) {
   if (!workout || !log)
     return {
@@ -83,6 +113,35 @@ export function completionReview(workout, log) {
       missingExercises: [],
       pain: false,
     };
+  const gym = (workout.items || []).every((item) => !item.kind || item.kind === 'strength');
+  if (!gym) {
+    let met = 0;
+    const missing = [];
+    workout.items.forEach((planned, index) => {
+      const byIndex = log.items[index];
+      const actual =
+        byIndex && (!planned.label || !byIndex.label || byIndex.label === planned.label)
+          ? byIndex
+          : log.items.find((item) => item.label && item.label === planned.label);
+      if (pieceLogged(planned, actual?.sets?.[0])) met += 1;
+      else missing.push(planned.label || 'piece');
+    });
+    const coverage = workout.items.length ? Math.round((met / workout.items.length) * 100) : null;
+    return {
+      coverage,
+      status: log.painFlag
+        ? 'attention'
+        : coverage === null
+          ? 'no_targets'
+          : coverage >= 100
+            ? 'met'
+            : 'partial',
+      missingExercises: missing,
+      pain: !!log.painFlag,
+      explanation:
+        'Compares the logged measurement with the assigned piece; self-reported logs do not prove physical completion.',
+    };
+  }
   const expected = workout.items.reduce((n, i) => n + i.sets, 0);
   let completed = 0;
   const missing = [];

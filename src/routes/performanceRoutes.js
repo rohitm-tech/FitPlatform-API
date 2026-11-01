@@ -64,7 +64,7 @@ r.get(
     const [records, reviews] = await Promise.all([
       Recovery.find({ athleteId: req.user._id })
         .sort({ date: -1, updatedAt: -1 })
-        .limit(30)
+        .limit(366)
         .lean(),
       TrainingReview.find({ athleteId: req.user._id })
         .sort({ createdAt: -1 })
@@ -233,6 +233,7 @@ r.get(
               name: l.athleteId.name,
               email: l.athleteId.email,
             },
+            sport: l.sport || 'Strength',
             readiness: summary,
             latest: l.athleteId.profile?.shareDetailedLogs
               ? readiness.latest

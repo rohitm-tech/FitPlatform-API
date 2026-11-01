@@ -122,7 +122,7 @@ it("creates invitation and acceptance notifications only for the two participant
   const invite = await request(app)
     .post("/api/v1/coach/athletes/invite")
     .set(coach.headers)
-    .send({ email: athlete.user.email });
+    .send({ email: athlete.user.email, sport: "Strength" });
   expect(invite.status).toBe(201);
   expect(
     (await request(app).get("/api/v1/notifications").set(athlete.headers)).body

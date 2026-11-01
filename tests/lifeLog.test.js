@@ -83,7 +83,7 @@ it('answers from this athlete’s food, body, recovery and training in the asked
     type: 'life',
     headline: '2 of 3 days logged',
     summary: '440 kcal/day · 17 g protein · 0.8 L water · -0.6 kg',
-    href: '/athlete#dash-daylog-title',
+    href: '/athlete/recovery',
   });
   expect(trace[0]).toMatchObject({ tool: 'review_life_log', status: 'done' });
   expect(trace[0].label).toMatch(/2 days with food, 440 kcal\/day/);
@@ -130,6 +130,40 @@ it('keeps a short lookback to recent days and rolls a long stretch into weeks', 
   expect(months.weeks.length).toBeGreaterThan(1);
   expect(months.recentEntries.map((entry) => entry.date)).toEqual(['2026-09-05']);
   expect(months.frequentFoods[0]).toMatchObject({ name: 'Idli', times: 2, avgCalories: 200 });
+});
+
+it('fills estimated calories on a logged meal without adding it twice', async () => {
+  const user = await athlete('estimate@log.test');
+  const trace = [];
+  const cards = [];
+  const tools = Object.fromEntries(buildCoachTools(user._id, trace, cards).map((item) => [item.name, item]));
+  await tools.log_day.invoke({
+    date: '2026-11-01',
+    foods: [
+      { meal: 'lunch', name: 'two butter roti', quantity: '2', calories: 240, estimated: true },
+      { meal: 'lunch', name: 'paneer curry' },
+    ],
+  });
+  const followUp = await tools.log_day.invoke({
+    date: '2026-11-01',
+    foods: [
+      {
+        meal: 'lunch',
+        name: 'paneer curry',
+        quantity: '1 plate',
+        calories: 320,
+        estimated: true,
+        updateExisting: true,
+      },
+    ],
+  });
+  const log = await DailyLog.findOne({ athleteId: user._id, date: '2026-11-01' }).lean();
+  expect(log.foods).toHaveLength(2);
+  expect(log.foods[0]).toMatchObject({ name: 'two butter roti', calories: 240, estimated: true });
+  expect(log.foods[1]).toMatchObject({ name: 'paneer curry', quantity: '1 plate', calories: 320, estimated: true });
+  expect(followUp).toMatch(/about 320 kcal/);
+  expect(followUp).not.toMatch(/Still without calories/);
+  expect(cards.at(-1).href).toBe('/athlete/recovery');
 });
 
 it('refuses a date the calendar does not have', async () => {

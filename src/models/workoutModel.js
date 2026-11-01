@@ -1,20 +1,6 @@
 import mongoose from 'mongoose';
-
-const workoutItemSchema = new mongoose.Schema(
-  {
-    exerciseId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Exercise',
-      required: true,
-    },
-    sets: { type: Number, required: true },
-    reps: { type: Number, required: true },
-    targetWeightKg: { type: Number, default: null },
-    restSec: { type: Number, default: 60 },
-    notes: { type: String, default: '' },
-  },
-  { _id: false },
-);
+import { SPORTS } from '../constants/sports.js';
+import { sessionItemSchema } from './sessionItemSchema.js';
 
 const workoutSchema = new mongoose.Schema(
   {
@@ -26,7 +12,8 @@ const workoutSchema = new mongoose.Schema(
     assignedBy: { type: String, default: 'ai' }, // userId string or "ai"
     date: { type: Date, required: true },
     title: { type: String, required: true },
-    items: { type: [workoutItemSchema], default: [] },
+    sport: { type: String, enum: SPORTS, default: 'Strength' },
+    items: { type: [sessionItemSchema()], default: [] },
     status: {
       type: String,
       enum: ['planned', 'completed', 'skipped'],

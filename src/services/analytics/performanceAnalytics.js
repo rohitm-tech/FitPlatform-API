@@ -10,6 +10,7 @@ export const getPersonalBests = async (athleteId) => {
 
   for (const log of logs) {
     for (const item of log.items) {
+      if (!item.exerciseId) continue;
       const key = String(item.exerciseId);
       const maxWeight = Math.max(0, ...item.sets.map((s) => s.weightKg || 0));
       const current = bestByExercise.get(key);

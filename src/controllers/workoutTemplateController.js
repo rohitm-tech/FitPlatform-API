@@ -39,6 +39,16 @@ export const assignTemplate = asyncHandler(async (req, res) => {
     throw new ApiError(403, 'Forbidden - one or more athletes are not coached by you');
   }
 
+  const templateSport = template.sport || 'Strength';
+  const wrongSport = activeLinks.filter((link) => (link.sport || 'Strength') !== templateSport);
+  if (wrongSport.length > 0) {
+    const theirs = [...new Set(wrongSport.map((link) => link.sport || 'Strength'))];
+    throw new ApiError(
+      400,
+      `This session is ${templateSport}. Those athletes train ${theirs.join(', ')} with you.`,
+    );
+  }
+
   const workouts = [];
   for (const athleteId of athleteIds) {
     for (const date of dates) {
@@ -47,6 +57,7 @@ export const assignTemplate = asyncHandler(async (req, res) => {
         assignedBy: req.user._id.toString(),
         date: new Date(date),
         title: template.title,
+        sport: templateSport,
         items: template.items,
         status: 'planned',
       });

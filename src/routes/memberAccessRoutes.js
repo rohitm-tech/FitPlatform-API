@@ -36,7 +36,7 @@ r.patch(
     if (!link) throw new ApiError(404, "Invitation not found");
     link.status = req.body.accept ? "active" : "ended";
     await link.save();
-    await notifyUser(link.coachId,`invite-decision:${link._id}`,{type:'invitation',title:req.body.accept?'An athlete accepted your invitation':'An athlete declined your invitation',body:`${req.user.name} ${req.body.accept?'is now in your roster.':'declined your coaching invitation.'}`,href:'/coach'});
+    await notifyUser(link.coachId,`invite-decision:${link._id}`,{type:'invitation',title:req.body.accept?'An athlete accepted your invitation':'An athlete declined your invitation',body:`${req.user.name} ${req.body.accept?`is now in your roster for ${link.sport || 'Strength'}.`:'declined your coaching invitation.'}`,href:'/coach'});
     res.json(new ApiResponse(200, link, "Invitation updated"));
   }),
 );

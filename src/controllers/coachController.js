@@ -59,6 +59,7 @@ export const listMyAthletes = asyncHandler(async (req, res) => {
         neglectedMuscleGroups: neglected,
         coachAthleteId: link._id,
         linkStatus: link.status,
+        sport: link.sport || 'Strength',
         unread: unreadByAthlete.get(String(athlete._id)) || 0,
       };
     })
@@ -72,21 +73,36 @@ export const listMyAthletes = asyncHandler(async (req, res) => {
 // Simplified invite flow for the prototype: invites an existing athlete
 // account by email (no email delivery / signup-via-link yet).
 export const inviteAthlete = asyncHandler(async (req, res) => {
-  const { email } = req.body;
+  const { email, sport } = req.body;
   const athlete = await User.findOne({ email: email.toLowerCase(), roles: 'athlete' });
   if (!athlete) {
     throw new ApiError(404, 'No athlete account found with that email yet — ask them to sign up first');
   }
 
   const existing = await CoachAthlete.findOne({ coachId: req.user._id, athleteId: athlete._id });
-  if (existing) {
-    throw new ApiError(409, 'This athlete is already linked to you');
+  if (existing?.status === 'active') {
+    throw new ApiError(409, `This athlete already trains ${existing.sport || 'Strength'} with you`);
   }
 
-  const link = await CoachAthlete.create({ coachId: req.user._id, athleteId: athlete._id, status: 'invited' });
-  const feeMinor = await recordInviteFee(req.user, athlete);
-  await notifyUser(athlete._id,`coach-invite:${link._id}`,{type:'invitation',title:'A coach invited you',body:`${req.user.name} wants to train with you. Review the invitation.`,href:'/settings?section=invitations'});
-  return res.status(201).json(new ApiResponse(201, { ...link.toObject(), inviteFeeMinor: feeMinor, currency: 'INR' }, `Invite sent. ${formatInr(feeMinor)} recorded as the invite fee.`));
+  let link = existing;
+  let feeMinor = 0;
+  if (!existing) {
+    link = await CoachAthlete.create({
+      coachId: req.user._id,
+      athleteId: athlete._id,
+      status: 'invited',
+      sport,
+    });
+    feeMinor = await recordInviteFee(req.user, athlete);
+  } else {
+    existing.status = 'invited';
+    existing.sport = sport;
+    await existing.save();
+    link = existing;
+  }
+  await notifyUser(athlete._id,`coach-invite:${link._id}`,{type:'invitation',title:'A coach invited you',body:`${req.user.name} invited you to train ${sport}. Review the invitation.`,href:'/settings?section=invitations'});
+  const feeNote = feeMinor ? ` ${formatInr(feeMinor)} recorded as the invite fee.` : '';
+  return res.status(201).json(new ApiResponse(201, { ...link.toObject(), inviteFeeMinor: feeMinor, currency: 'INR' }, `Invite sent for ${sport}.${feeNote}`));
 });
 
 const publicProfile = (profile = {}) => ({
@@ -115,7 +131,7 @@ export const exploreAthletes = asyncHandler(async (req, res) => {
   const ids = people.map((person) => person._id);
   const [links, payments] = await Promise.all([
     CoachAthlete.find({ coachId: req.user._id, athleteId: { $in: ids } })
-      .select('athleteId status offer')
+      .select('athleteId status offer sport followUps')
       .lean(),
     Payment.find({
       providerId: req.user._id,
@@ -136,6 +152,12 @@ export const exploreAthletes = asyncHandler(async (req, res) => {
       profile: publicProfile(person.profile),
       linkStatus: link?.status || 'none',
       offer: link?.offer || '',
+      sport: link?.sport || '',
+      followUps: (link?.followUps || []).map((note) => ({
+        _id: note._id,
+        text: note.text,
+        sentAt: note.sentAt,
+      })),
       paid: paid.has(String(person._id)),
     };
   });
@@ -153,11 +175,21 @@ export const offerToTrain = asyncHandler(async (req, res) => {
     athleteId: athlete._id,
   });
   if (existing?.status === 'active') {
-    throw new ApiError(409, 'This athlete already trains with you');
+    throw new ApiError(409, `This athlete already trains ${existing.sport || 'Strength'} with you`);
+  }
+  if (existing?.status === 'invited') {
+    throw new ApiError(409, 'An offer is already waiting. Send a follow-up instead.');
   }
   const link = await CoachAthlete.findOneAndUpdate(
     { coachId: req.user._id, athleteId: athlete._id },
-    { $set: { status: 'invited', offer: req.body.text } },
+    {
+      $set: {
+        status: 'invited',
+        offer: req.body.text,
+        sport: req.body.sport,
+        followUps: [],
+      },
+    },
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
   await notifyUser(athlete._id, `coach-offer:${link._id}`, {
@@ -167,6 +199,30 @@ export const offerToTrain = asyncHandler(async (req, res) => {
     href: '/settings?section=invitations',
   });
   return res.status(201).json(new ApiResponse(201, link, 'Offer sent'));
+});
+
+export const followUpOffer = asyncHandler(async (req, res) => {
+  const athlete = await User.findOne({ _id: req.params.athleteId, roles: 'athlete' });
+  if (!athlete) throw new ApiError(404, 'Athlete not found');
+  const link = await CoachAthlete.findOne({
+    coachId: req.user._id,
+    athleteId: athlete._id,
+    status: 'invited',
+  });
+  if (!link) throw new ApiError(409, 'Send an offer before a follow-up');
+  if (link.followUps.length >= 20) {
+    throw new ApiError(409, 'This offer already has 20 follow-ups');
+  }
+  link.followUps.push({ text: req.body.text, sentAt: new Date() });
+  await link.save();
+  const note = link.followUps[link.followUps.length - 1];
+  await notifyUser(athlete._id, `coach-offer-followup:${note._id}`, {
+    type: 'invitation',
+    title: `${req.user.name} sent a follow-up`,
+    body: req.body.text,
+    href: '/settings?section=invitations',
+  });
+  return res.status(201).json(new ApiResponse(201, link, 'Follow-up sent'));
 });
 
 export const athleteDashboard = asyncHandler(async (req, res) => {
@@ -191,7 +247,7 @@ export const athleteDashboard = asyncHandler(async (req, res) => {
       .sort({ paidAt: -1 })
       .lean(),
     CoachAthlete.findOne({ coachId: req.user._id, athleteId, status: 'active' })
-      .select('startedAt')
+      .select('startedAt sport')
       .lean(),
     Workout.countDocuments({ athleteId }),
     Workout.countDocuments({ athleteId, status: 'completed' }),
@@ -210,6 +266,7 @@ export const athleteDashboard = asyncHandler(async (req, res) => {
           profile: publicProfile(athlete.profile),
         },
         coachingSince: link?.startedAt || null,
+        sport: link?.sport || 'Strength',
         sessionsAssigned: assigned,
         sessionsCompleted: completed,
         sessionsLogged30d: logged30,

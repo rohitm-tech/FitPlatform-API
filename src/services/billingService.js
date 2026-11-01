@@ -33,7 +33,7 @@ export function formatInr(minor = 0) {
 
 export async function getPricing() {
   const existing = await PlatformPricing.findOne({ key: 'default' }).lean();
-  const pricing = existing || (await PlatformPricing.create(DEFAULT_PRICING)).toObject();
+  let pricing = existing || (await PlatformPricing.create(DEFAULT_PRICING)).toObject();
   const pricePatch = {};
   if (pricing.freeCoachChatFeeMinor == null) pricePatch.freeCoachChatFeeMinor = 20000;
   if (pricing.coachChatFeeMinor === 99900) pricePatch.coachChatFeeMinor = 15000;
@@ -41,6 +41,7 @@ export async function getPricing() {
     await PlatformPricing.updateOne({ key: 'default' }, { $set: pricePatch });
     Object.assign(pricing, pricePatch);
   }
+  pricing = await ensureCommunityFeatures(pricing);
   await User.updateOne(
     { email: 'athlete1@fitplatform.app', $or: [{ plan: { $exists: false } }, { plan: null }] },
     { $set: { plan: 'premium' } },
@@ -62,6 +63,25 @@ export async function savePricing(input) {
   return saved;
 }
 
+async function ensureCommunityFeatures(pricing) {
+  const defaults = new Map(
+    DEFAULT_PRICING.plans.map((plan) => [
+      plan.id,
+      plan.features.find((feature) => feature.key === 'community'),
+    ]),
+  );
+  let changed = false;
+  const plans = (pricing.plans || []).map((plan) => {
+    const feature = defaults.get(plan.id);
+    if (!feature || (plan.features || []).some((item) => item.key === 'community')) return plan;
+    changed = true;
+    return { ...plan, features: [...(plan.features || []), { ...feature }] };
+  });
+  if (!changed) return pricing;
+  await PlatformPricing.updateOne({ key: 'default' }, { $set: { plans } });
+  return { ...pricing, plans };
+}
+
 function planFor(pricing, user) {
   const id = user?.plan || 'free';
   return pricing.plans.find((plan) => plan.id === id) || pricing.plans.find((plan) => plan.id === 'free');
@@ -77,13 +97,32 @@ export async function assertFeature(user, key) {
   if (feature?.included) return pricing;
   const plan = planFor(pricing, user);
   const premium = pricing.plans.find((item) => item.id === 'premium');
+  const name = premium?.name || 'Premium';
+  const price = formatInr(premium?.priceMinor || 0);
+  const message = key === 'community'
+    ? `The community is part of ${name} (${price} a month).`
+    : key === 'ai'
+      ? `AI coach is part of ${name} (${price} a month). The free plan can still log by hand.`
+      : `Connecting a watch or band is part of ${name} (${price} a month). The free plan can still log by hand.`;
   throw new ApiError(
     402,
-    key === 'ai'
-      ? `AI coach is part of ${premium?.name || 'Premium'} (${formatInr(premium?.priceMinor || 0)} a month). The free plan can still log by hand.`
-      : `Connecting a watch or band is part of ${premium?.name || 'Premium'} (${formatInr(premium?.priceMinor || 0)} a month). The free plan can still log by hand.`,
+    message,
     [{ code: 'upgrade', planId: 'premium', amountMinor: premium?.priceMinor || 0, currency: 'INR', currentPlan: plan?.id || 'free' }],
   );
+}
+
+export function requireAthleteFeature(key) {
+  return async (req, res, next) => {
+    try {
+      if (!req.user?.roles?.includes('athlete')) {
+        throw new ApiError(403, 'This feature is for athletes.');
+      }
+      await assertFeature(req.user, key);
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 
 export function requirePlanFeature(key) {

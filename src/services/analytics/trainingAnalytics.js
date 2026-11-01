@@ -26,6 +26,7 @@ export const getMuscleGroupVolume = async (athleteId, days) => {
   const volumeByGroup = {};
   for (const log of logs) {
     for (const item of log.items) {
+      if (!item.exerciseId) continue;
       const muscles = exerciseMuscles.get(String(item.exerciseId)) || [];
       for (const muscle of muscles) {
         volumeByGroup[muscle.group] = (volumeByGroup[muscle.group] || 0) + item.sets.length;
@@ -46,6 +47,7 @@ export const getNeglectedMuscleGroups = async (athleteId, thresholdDays = 5) => 
   const lastTrainedAt = {};
   for (const log of logs) {
     for (const item of log.items) {
+      if (!item.exerciseId) continue;
       const muscles = exerciseMuscles.get(String(item.exerciseId)) || [];
       for (const muscle of muscles) {
         if (!lastTrainedAt[muscle.group] || log.date > lastTrainedAt[muscle.group]) {
@@ -79,6 +81,7 @@ export const getWeeklyVolumeTrend = async (athleteId, weeks = 6) => {
     if (bucketIndex < 0 || bucketIndex >= weeks) continue;
 
     for (const item of log.items) {
+      if (!item.exerciseId) continue;
       const muscles = exerciseMuscles.get(String(item.exerciseId)) || [];
       for (const muscle of muscles) {
         weekBuckets[bucketIndex][muscle.group] = (weekBuckets[bucketIndex][muscle.group] || 0) + item.sets.length;

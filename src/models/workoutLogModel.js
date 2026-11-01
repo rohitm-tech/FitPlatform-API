@@ -2,15 +2,19 @@ import mongoose from 'mongoose';
 
 const setLogSchema = new mongoose.Schema(
   {
-    reps: { type: Number, required: true },
+    reps: { type: Number, default: 0 },
     weightKg: { type: Number, default: 0 },
+    distanceM: { type: Number, default: null },
+    durationSec: { type: Number, default: null },
   },
   { _id: false }
 );
 
 const workoutLogItemSchema = new mongoose.Schema(
   {
-    exerciseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Exercise', required: true },
+    exerciseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Exercise' },
+    label: { type: String, trim: true, maxlength: 80, default: '' },
+    kind: { type: String, default: '' },
     sets: { type: [setLogSchema], default: [] },
   },
   { _id: false }

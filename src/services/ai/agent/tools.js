@@ -126,6 +126,8 @@ export function buildCoachTools(athleteId, trace, cards) {
     }
   );
 
+  const foodKey = (name) => String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
   const log_day = tool(
     async ({ date, foods, waterMl, weightKg, mood, energy, stress, note }) => {
       const day = date || today();
@@ -133,10 +135,13 @@ export function buildCoachTools(athleteId, trace, cards) {
         .map((food) => ({
           meal: food.meal,
           name: String(food.name || '').trim().slice(0, 120),
+          quantity: food.quantity ? String(food.quantity).trim().slice(0, 80) : '',
           calories: food.calories ?? null,
+          estimated: food.calories != null && food.estimated === true,
           proteinG: food.proteinG ?? null,
           carbsG: food.carbsG ?? null,
           fatG: food.fatG ?? null,
+          updateExisting: food.updateExisting === true,
         }))
         .filter((food) => food.name && MEALS.includes(food.meal));
       const hasDay =
@@ -144,60 +149,98 @@ export function buildCoachTools(athleteId, trace, cards) {
       if (!entries.length && !hasDay) {
         return 'Nothing to save. Pass the foods they named, or water, weight, mood, energy, or stress.';
       }
-      const existing = await DailyLog.findOne({ athleteId, date: day }).select('foods waterMl').lean();
-      if ((existing?.foods?.length || 0) + entries.length > 60) {
+      let log = await DailyLog.findOne({ athleteId, date: day });
+      if (!log) log = new DailyLog({ athleteId, date: day, foods: [] });
+      const added = [];
+      const updated = [];
+      for (const food of entries) {
+        let match = null;
+        if (food.updateExisting) {
+          for (let i = log.foods.length - 1; i >= 0; i -= 1) {
+            if (log.foods[i].meal === food.meal && foodKey(log.foods[i].name) === foodKey(food.name)) {
+              match = log.foods[i];
+              break;
+            }
+          }
+        }
+        if (match) {
+          if (food.quantity) match.quantity = food.quantity;
+          if (food.calories != null) {
+            match.calories = food.calories;
+            match.estimated = food.estimated;
+          }
+          if (food.proteinG != null) match.proteinG = food.proteinG;
+          if (food.carbsG != null) match.carbsG = food.carbsG;
+          if (food.fatG != null) match.fatG = food.fatG;
+          updated.push(match);
+        } else {
+          added.push(food);
+        }
+      }
+      if (log.foods.length + added.length > 60) {
         return 'This day already has 60 food entries. Ask them to remove one in the log before adding more.';
       }
-      const update = {};
-      if (entries.length) update.$push = { foods: { $each: entries } };
-      const set = {};
-      if (waterMl != null) {
-        set.waterMl = Math.min(15000, Math.max(0, (existing?.waterMl || 0) + waterMl));
+      for (const food of added) {
+        log.foods.push({
+          meal: food.meal,
+          name: food.name,
+          quantity: food.quantity,
+          calories: food.calories,
+          estimated: food.estimated,
+          proteinG: food.proteinG,
+          carbsG: food.carbsG,
+          fatG: food.fatG,
+        });
       }
-      if (weightKg != null) set.weightKg = weightKg;
-      if (mood != null) set.mood = mood;
-      if (energy != null) set.energy = energy;
-      if (stress != null) set.stress = stress;
-      if (note) set.note = note.slice(0, 500);
-      if (Object.keys(set).length) update.$set = set;
-      await DailyLog.findOneAndUpdate({ athleteId, date: day }, update, {
-        upsert: true,
-        new: true,
-        runValidators: true,
-        setDefaultsOnInsert: true,
-      });
-      const bits = [];
-      if (entries.length) {
+      if (waterMl != null) log.waterMl = Math.min(15000, Math.max(0, (log.waterMl || 0) + waterMl));
+      if (weightKg != null) log.weightKg = weightKg;
+      if (mood != null) log.mood = mood;
+      if (energy != null) log.energy = energy;
+      if (stress != null) log.stress = stress;
+      if (note) log.note = note.slice(0, 500);
+      await log.save();
+      const describe = (list) => {
         const byMeal = {};
-        for (const food of entries) {
+        for (const food of list) {
+          const amount = food.calories != null
+            ? `${food.name}${food.estimated ? ` about ${Math.round(food.calories)} kcal` : ` ${Math.round(food.calories)} kcal`}`
+            : food.name;
           byMeal[food.meal] = byMeal[food.meal] || [];
-          byMeal[food.meal].push(food.name);
+          byMeal[food.meal].push(amount);
         }
-        bits.push(
-          Object.entries(byMeal)
-            .map(([meal, names]) => `${meal}: ${names.join(', ')}`)
-            .join('; '),
-        );
-      }
-      if (set.waterMl != null) bits.push(`${set.waterMl} ml water`);
-      if (set.weightKg != null) bits.push(`${set.weightKg} kg`);
-      if (set.mood != null) bits.push(`mood ${set.mood}/5`);
-      if (set.energy != null) bits.push(`energy ${set.energy}/5`);
-      if (set.stress != null) bits.push(`stress ${set.stress}/5`);
+        return Object.entries(byMeal)
+          .map(([meal, names]) => `${meal}: ${names.join(', ')}`)
+          .join('; ');
+      };
+      const bits = [];
+      if (added.length) bits.push(describe(added));
+      if (updated.length) bits.push(`updated ${describe(updated)}`);
+      if (waterMl != null) bits.push(`${log.waterMl} ml water`);
+      if (weightKg != null) bits.push(`${weightKg} kg`);
+      if (mood != null) bits.push(`mood ${mood}/5`);
+      if (energy != null) bits.push(`energy ${energy}/5`);
+      if (stress != null) bits.push(`stress ${stress}/5`);
+      const touched = [...added, ...updated];
+      const missing = touched.filter((food) => food.calories == null).map((food) => food.name);
+      const estimates = touched.filter((food) => food.estimated && food.calories != null);
       trace.push({ tool: 'log_day', label: `Logged ${day}: ${bits.join(' · ')}`, status: 'done' });
       cards.push({
         type: 'life',
         name: `Logged ${day}`,
         headline: bits[0] || 'Daily log updated',
-        summary: 'Saved to the daily log',
-        href: '/athlete#dash-daylog-title',
+        summary: estimates.length ? 'Saved to Recovery, with estimated calories' : 'Saved to Recovery',
+        href: '/athlete/recovery',
       });
-      return `Saved for ${day}: ${bits.join('; ')}. Calories were stored only when a number was given.`;
+      const followUp = missing.length
+        ? ` Still without calories: ${missing.join(', ')}. Ask how much (pieces, bowl, or plate) before estimating these.`
+        : '';
+      const estimateNote = estimates.length ? ' Estimated calories are approximate.' : '';
+      return `Saved for ${day}: ${bits.join('; ')}.${estimateNote}${followUp}`;
     },
     {
       name: 'log_day',
       description:
-        "Write into this athlete's daily log. Call it immediately when they ask to log or record food, a meal, water, body weight, mood, energy, or stress. Store the foods in their own words (for example \"two butter roti\" and \"paneer curry\" as lunch). Do not refuse because calories are missing, and do not invent calories or macros — leave them empty unless the athlete stated a number. Water is added to today's total, in millilitres. Mood, energy and stress are 1-5. Defaults to today in India.",
+        "Write into this athlete's daily log, shown on Recovery. Call it immediately when they ask to log food, a meal, water, body weight, mood, energy, or stress, and when they send a photo of food. Keep their words (for example \"two butter roti\" and \"paneer curry\" as lunch). If they state calories, store that number. If the portion is specific, store one approximate calorie total and set estimated true. If the portion is unclear, log the name with no calories and ask how much. On the follow-up, set updateExisting true so the same food is not added twice. Water is added to today's total, in millilitres. Mood, energy and stress are 1-5. Defaults to today in India.",
       schema: z.object({
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('YYYY-MM-DD, defaults to today'),
         foods: z
@@ -205,7 +248,10 @@ export function buildCoachTools(athleteId, trace, cards) {
             z.object({
               meal: z.enum(MEALS),
               name: z.string().min(1).max(120).describe('What they ate, in their words'),
+              quantity: z.string().max(80).optional().describe('Amount they gave, e.g. "2" or "1 plate"'),
               calories: z.number().min(0).max(10000).optional(),
+              estimated: z.boolean().optional().describe('true only when calories are your estimate, not a number they stated'),
+              updateExisting: z.boolean().optional().describe('true when filling calories on a food already logged, so it is not added again'),
               proteinG: z.number().min(0).max(1000).optional(),
               carbsG: z.number().min(0).max(2000).optional(),
               fatG: z.number().min(0).max(1000).optional(),
@@ -421,7 +467,7 @@ export function buildCoachTools(athleteId, trace, cards) {
           ? `${summary.loggedDays} of ${summary.spanDays} days logged`
           : 'Nothing logged in this stretch',
         summary: summary.cardLine || 'Food, water, weight, mood, sleep and training',
-        href: '/athlete#dash-daylog-title',
+        href: '/athlete/recovery',
       });
       const { cardLine, ...forModel } = summary;
       return JSON.stringify(forModel);

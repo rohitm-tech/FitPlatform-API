@@ -6,7 +6,9 @@ const foodSchema = new mongoose.Schema(
   {
     meal: { type: String, enum: MEALS, required: true },
     name: { type: String, trim: true, maxlength: 120, required: true },
+    quantity: { type: String, trim: true, maxlength: 80, default: '' },
     calories: { type: Number, min: 0, max: 10000, default: null },
+    estimated: { type: Boolean, default: false },
     proteinG: { type: Number, min: 0, max: 1000, default: null },
     carbsG: { type: Number, min: 0, max: 2000, default: null },
     fatG: { type: Number, min: 0, max: 1000, default: null },

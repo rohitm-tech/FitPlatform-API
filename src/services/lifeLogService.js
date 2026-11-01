@@ -114,7 +114,9 @@ function foodLine(food) {
   return compact({
     meal: food.meal,
     name: food.name,
+    quantity: food.quantity,
     calories: food.calories,
+    estimated: food.estimated ? true : null,
     proteinG: food.proteinG,
     carbsG: food.carbsG,
     fatG: food.fatG,
@@ -308,7 +310,7 @@ export async function summarizeLifeLog(athleteId, query) {
     },
     frequentFoods: frequentFoods(logs),
     caveat:
-      'Averages use only days where that measurement was logged. Foods without a calorie or macro number are left out of that total. Water of 0 ml counts as not logged. Do not invent numbers for empty days.',
+      'Averages use only days where that measurement was logged. Foods without a calorie or macro number are left out of that total. Calories marked estimated are approximate. Water of 0 ml counts as not logged. Do not invent numbers for empty days.',
   };
   if (window.spanDays <= DETAIL_DAYS) {
     summary.entries = entries;

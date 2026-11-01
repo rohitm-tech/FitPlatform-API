@@ -41,7 +41,9 @@ const grams = (max) => z.number().min(0).max(max).nullable().optional();
 const foodSchema = z.object({
   meal: z.enum(MEALS),
   name: z.string().trim().min(1, 'Name the food').max(120),
+  quantity: z.string().trim().max(80).optional(),
   calories: z.number().min(0).max(10000).nullable().optional(),
+  estimated: z.boolean().optional(),
   proteinG: grams(1000),
   carbsG: grams(2000),
   fatG: grams(1000),
@@ -61,7 +63,7 @@ function upsert(athleteId, date, update) {
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const days = Math.min(Math.max(Number(req.query.days) || 14, 1), 90);
+    const days = Math.min(Math.max(Number(req.query.days) || 14, 1), 366);
     const to = req.query.to ? dayParam(String(req.query.to)) : new Date().toISOString().slice(0, 10);
     const from = new Date(Date.parse(`${to}T00:00:00Z`) - (days - 1) * DAY_MS).toISOString().slice(0, 10);
     const logs = await DailyLog.find({ athleteId: req.user._id, date: { $gte: from, $lte: to } })
@@ -100,7 +102,8 @@ router.post(
     const date = dayParam(req.params.date);
     const existing = await DailyLog.findOne({ athleteId: req.user._id, date }).select('foods').lean();
     if ((existing?.foods?.length || 0) >= 60) throw new ApiError(400, 'This day already has 60 food entries');
-    const log = await upsert(req.user._id, date, { $push: { foods: req.body } });
+    const food = { ...req.body, estimated: req.body.calories != null && req.body.estimated === true };
+    const log = await upsert(req.user._id, date, { $push: { foods: food } });
     res.status(201).json(new ApiResponse(201, log, 'Food saved'));
   }),
 );
