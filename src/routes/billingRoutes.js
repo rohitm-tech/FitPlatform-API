@@ -8,6 +8,7 @@ import { ApiResponse } from '../utils/apiResponse.js';
 import { ApiError } from '../utils/apiError.js';
 import {
   billingProfile,
+  coachChatQuote,
   coachEarnings,
   getPricing,
   purchaseCoachChat,
@@ -48,6 +49,7 @@ const pricingSchema = z.object({
     .min(1)
     .max(6),
   coachInviteFeeMinor: z.number().int().min(0).max(100000000),
+  freeCoachChatFeeMinor: z.number().int().min(0).max(100000000).default(20000),
   coachChatFeeMinor: z.number().int().min(0).max(100000000),
   coachEarningsFeePercent: z.number().min(0).max(100),
   gymMonthlyMinor: z.number().int().min(0).max(100000000),
@@ -68,6 +70,15 @@ router.post(
   asyncHandler(async (req, res) => {
     const result = await upgradePlan(req.user, req.body.planId);
     res.json(new ApiResponse(200, result, 'Plan updated'));
+  }),
+);
+
+router.get(
+  '/coach-chat/:coachId',
+  requireRole('athlete'),
+  asyncHandler(async (req, res) => {
+    if (!/^[a-fA-F0-9]{24}$/.test(req.params.coachId)) throw new ApiError(400, 'Invalid coach');
+    res.json(new ApiResponse(200, await coachChatQuote(req.user, req.params.coachId), 'Coach chat'));
   }),
 );
 

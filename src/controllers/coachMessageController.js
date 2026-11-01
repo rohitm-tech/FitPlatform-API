@@ -89,6 +89,29 @@ export const listMyCoachMessages = asyncHandler(async (req, res) => {
   return res.json(new ApiResponse(200, messages, 'Messages fetched'));
 });
 
+export const listPaidCoachMessages = asyncHandler(async (req, res) => {
+  const coachId = req.params.coachId;
+  if (!/^[a-fA-F0-9]{24}$/.test(coachId)) throw new ApiError(400, 'Invalid coach');
+  await ensureCoachChat(req.user, coachId);
+  const messages = await threadFor(coachId, req.user._id, req.user._id);
+  return res.json(new ApiResponse(200, messages, 'Messages fetched'));
+});
+
+export const sendPaidCoachMessage = asyncHandler(async (req, res) => {
+  const coachId = req.params.coachId;
+  if (!/^[a-fA-F0-9]{24}$/.test(coachId)) throw new ApiError(400, 'Invalid coach');
+  await ensureCoachChat(req.user, coachId);
+  const message = await sendMessage({
+    coachId,
+    athleteId: req.user._id,
+    sender: req.user,
+    text: req.body.text,
+    recipientId: coachId,
+    href: `/coach/athletes/${req.user._id}`,
+  });
+  return res.status(201).json(new ApiResponse(201, message, 'Message sent'));
+});
+
 export const sendToMyCoach = asyncHandler(async (req, res) => {
   const link = await activeCoachLink(req.user._id);
   if (!link?.coachId) throw new ApiError(404, 'You do not have an active coach');

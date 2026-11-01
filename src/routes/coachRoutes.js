@@ -4,7 +4,7 @@ import { listTemplates, createTemplate, assignTemplate } from '../controllers/wo
 import { listAthleteMessages, sendToAthlete } from '../controllers/coachMessageController.js';
 import { verifyJWT } from '../middlewares/authMiddleware.js';
 import { requireRole } from '../middlewares/roleMiddleware.js';
-import { requireCoachOwnsAthlete } from '../middlewares/ownershipMiddleware.js';
+import { requireCoachOwnsAthlete, requireCoachChatAccess } from '../middlewares/ownershipMiddleware.js';
 import {
   validateBody,
   coachMessageSchema,
@@ -23,10 +23,10 @@ router.post('/explore/:athleteId/offer', validateBody(coachOfferSchema), offerTo
 router.get('/athletes/:athleteId/dashboard', requireCoachOwnsAthlete, athleteDashboard);
 router.get('/athletes', listMyAthletes);
 router.post('/athletes/invite', validateBody(inviteAthleteSchema), inviteAthlete);
-router.get('/athletes/:athleteId/messages', requireCoachOwnsAthlete, listAthleteMessages);
+router.get('/athletes/:athleteId/messages', requireCoachChatAccess, listAthleteMessages);
 router.post(
   '/athletes/:athleteId/messages',
-  requireCoachOwnsAthlete,
+  requireCoachChatAccess,
   validateBody(coachMessageSchema),
   sendToAthlete
 );

@@ -34,6 +34,13 @@ export function formatInr(minor = 0) {
 export async function getPricing() {
   const existing = await PlatformPricing.findOne({ key: 'default' }).lean();
   const pricing = existing || (await PlatformPricing.create(DEFAULT_PRICING)).toObject();
+  const pricePatch = {};
+  if (pricing.freeCoachChatFeeMinor == null) pricePatch.freeCoachChatFeeMinor = 20000;
+  if (pricing.coachChatFeeMinor === 99900) pricePatch.coachChatFeeMinor = 15000;
+  if (Object.keys(pricePatch).length) {
+    await PlatformPricing.updateOne({ key: 'default' }, { $set: pricePatch });
+    Object.assign(pricing, pricePatch);
+  }
   await User.updateOne(
     { email: 'athlete1@fitplatform.app', $or: [{ plan: { $exists: false } }, { plan: null }] },
     { $set: { plan: 'premium' } },
@@ -99,14 +106,43 @@ async function record(entry) {
   return LedgerEntry.create({ currency: 'INR', recordedAt: new Date(), ...entry });
 }
 
+function coachChatTerms(pricing, user) {
+  const plan = planFor(pricing, user);
+  const feature = featureOf(plan, 'coach_chats');
+  const limit = feature?.included ? (feature.limit == null ? Infinity : Number(feature.limit)) : 0;
+  const amountMinor = limit > 0
+    ? pricing.coachChatFeeMinor
+    : (pricing.freeCoachChatFeeMinor ?? pricing.coachChatFeeMinor);
+  return { plan, limit, amountMinor };
+}
+
+export async function coachChatQuote(athlete, coachId) {
+  const pricing = await getPricing();
+  const { plan, limit, amountMinor } = coachChatTerms(pricing, athlete);
+  const [existing, used] = await Promise.all([
+    CoachChatPass.findOne({ athleteId: athlete._id, coachId }).lean(),
+    CoachChatPass.countDocuments({ athleteId: athlete._id }),
+  ]);
+  const remaining = limit === Infinity ? null : Math.max(0, limit - used);
+  return {
+    plan: plan?.id || 'free',
+    planName: plan?.name || 'Free',
+    included: limit === Infinity ? null : limit,
+    used,
+    remaining,
+    unlocked: Boolean(existing),
+    needsPayment: !existing && used >= limit,
+    amountMinor,
+    currency: 'INR',
+  };
+}
+
 export async function ensureCoachChat(athlete, coachId) {
   const athleteId = athlete._id;
   const existing = await CoachChatPass.findOne({ athleteId, coachId }).lean();
   if (existing) return existing;
   const pricing = await getPricing();
-  const plan = planFor(pricing, athlete);
-  const feature = featureOf(plan, 'coach_chats');
-  const limit = feature?.included ? (feature.limit == null ? Infinity : Number(feature.limit)) : 0;
+  const { plan, limit, amountMinor } = coachChatTerms(pricing, athlete);
   const used = await CoachChatPass.countDocuments({ athleteId });
   if (used < limit) {
     return CoachChatPass.create({ athleteId, coachId, reason: 'included', amountMinor: 0 });
@@ -114,11 +150,11 @@ export async function ensureCoachChat(athlete, coachId) {
   throw new ApiError(
     402,
     limit > 0
-      ? `${plan.name} includes ${limit} coach conversations. Another coach is ${formatInr(pricing.coachChatFeeMinor)}.`
-      : `Messaging a coach is ${formatInr(pricing.coachChatFeeMinor)} on the ${plan.name} plan.`,
+      ? `${plan.name} includes ${limit} coach chats. Another coach is ${formatInr(amountMinor)}.`
+      : `Pay ${formatInr(amountMinor)} to chat with this coach on the ${plan.name} plan.`,
     [{
       code: 'coach_chat_payment',
-      amountMinor: pricing.coachChatFeeMinor,
+      amountMinor,
       currency: 'INR',
       coachId: String(coachId),
     }],
@@ -126,13 +162,17 @@ export async function ensureCoachChat(athlete, coachId) {
 }
 
 export async function purchaseCoachChat(athlete, coachId) {
-  const existing = await CoachChatPass.findOne({ athleteId: athlete._id, coachId }).lean();
-  if (existing) return existing;
+  try {
+    return await ensureCoachChat(athlete, coachId);
+  } catch (error) {
+    if (error?.statusCode !== 402) throw error;
+  }
   const pricing = await getPricing();
+  const { amountMinor } = coachChatTerms(pricing, athlete);
   await record({
     kind: 'coach_chat',
-    amountMinor: pricing.coachChatFeeMinor,
-    grossMinor: pricing.coachChatFeeMinor,
+    amountMinor,
+    grossMinor: amountMinor,
     athleteId: athlete._id,
     coachId,
     title: 'Coach conversation',
@@ -143,7 +183,7 @@ export async function purchaseCoachChat(athlete, coachId) {
     athleteId: athlete._id,
     coachId,
     reason: 'paid',
-    amountMinor: pricing.coachChatFeeMinor,
+    amountMinor,
   });
 }
 

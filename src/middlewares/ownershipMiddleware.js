@@ -1,5 +1,6 @@
 import { ApiError } from '../utils/apiError.js';
 import { CoachAthlete } from '../models/coachAthleteModel.js';
+import { CoachChatPass } from '../models/coachChatPassModel.js';
 import { Gym } from '../models/gymModel.js';
 
 // A coach may only read/write athletes they actively coach. Hiding the UI is
@@ -17,6 +18,24 @@ export const requireCoachOwnsAthlete = async (req, res, next) => {
     if (!link) {
       throw new ApiError(403, 'Forbidden - not this athlete\'s coach');
     }
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const requireCoachChatAccess = async (req, res, next) => {
+  try {
+    const athleteId = req.params.athleteId;
+    if (!req.user.roles?.includes('coach')) throw new ApiError(403, 'Coach access is required');
+    const link = await CoachAthlete.findOne({
+      coachId: req.user._id,
+      athleteId,
+      status: 'active',
+    });
+    if (link) return next();
+    const pass = await CoachChatPass.findOne({ coachId: req.user._id, athleteId });
+    if (!pass) throw new ApiError(403, 'Forbidden - this chat is not unlocked');
     next();
   } catch (error) {
     next(error);
