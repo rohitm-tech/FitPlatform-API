@@ -17,6 +17,14 @@ import {
 } from '../services/billingService.js';
 
 const router = Router();
+
+router.get(
+  '/pricing',
+  asyncHandler(async (_req, res) => {
+    res.json(new ApiResponse(200, await getPricing(), 'Pricing'));
+  }),
+);
+
 router.use(verifyJWT);
 
 const featureSchema = z.object({
@@ -45,13 +53,6 @@ const pricingSchema = z.object({
   gymMonthlyMinor: z.number().int().min(0).max(100000000),
   marketplaceFeePercent: z.number().min(0).max(100),
 });
-
-router.get(
-  '/pricing',
-  asyncHandler(async (_req, res) => {
-    res.json(new ApiResponse(200, await getPricing(), 'Pricing'));
-  }),
-);
 
 router.get(
   '/me',

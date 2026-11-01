@@ -20,6 +20,7 @@ export const registerUser = asyncHandler(async (req, res) => {
     email: email.toLowerCase(),
     passwordHash: password,
     roles: [role],
+    plan: 'free',
     onboardingCompleted: role !== 'athlete',
   });
 
